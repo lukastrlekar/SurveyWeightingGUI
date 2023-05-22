@@ -12,7 +12,7 @@ options(spinner.type = 8)
 shinyUI(
   navbarPage(title = "SurveyWeightingGUI", id = "nav_menu", collapsible = TRUE,
              shinyjs::useShinyjs(),
-             includeCSS("style.css"),
+             includeCSS("www/style.css"),
              tags$head(tags$script("
                         Shiny.addCustomMessageHandler('resetValue', function(variableName) {
                         Shiny.onInputChange(variableName, null);
