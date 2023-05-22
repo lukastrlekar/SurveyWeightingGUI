@@ -1,0 +1,998 @@
+suppressPackageStartupMessages({
+  library(shiny)
+  library(shinyWidgets)
+  library(shinyjs)
+  library(shinycssloaders)
+  library(DT)
+  library(rhandsontable)
+  
+  library(haven)
+  library(labelled)
+  library(openxlsx)
+  library(anesrake)
+})
+
+source("Excel_output_files.R")
+source("Data_manipulation.R")
+source("Raking_script.R")
+source("Analyses_functions.R")
+
+# TODO
+# nadomestiti eventReactive in observeEvenet z bindEvent in preizkustiti še pohitritev z eventCache
+# if require package FALSE install.packages...
+
+
+shinyServer(function(input, output, session){
+  
+  ## Global settings
+  options(shiny.sanitize.errors = FALSE,
+          shiny.maxRequestSize = 100 * 1024^2, # Change maximum file size upload to 100 MB
+          htmlwidgets.TOJSON_ARGS = list(na = 'string'), # Display missing values as NA instead of blank space (https://stackoverflow.com/questions/58526047/customizing-how-datatables-displays-missing-values-in-shiny)
+          scipen = 999) # Prevent scientific notation
+  
+  # Change style of file upload buttons to primary buttons
+  runjs("$('#upload_raw_data').parent().removeClass('btn-default').addClass('btn-primary');")
+  
+  # Next button events
+  observeEvent(input$start_using, {
+    updateNavbarPage(session = session, inputId = "nav_menu", selected = "upload_data_tab")
+  })
+  
+  observeEvent(input$jump_to_select_variables_tab, {
+    updateNavbarPage(session = session, inputId = "nav_menu", selected = "select_variables_tab")
+  })
+  
+  observeEvent(input$jump_to_input_margins_tab, {
+    updateNavbarPage(session = session, inputId = "nav_menu", selected = "input_margins_tab")
+  })
+  
+  observeEvent(input$jump_to_weighting_tab, {
+    updateNavbarPage(session = session, inputId = "nav_menu", selected = "weighting_tab")
+  })
+  
+  observeEvent(input$jump_to_weighting_tab2, {
+    updateNavbarPage(session = session, inputId = "nav_menu", selected = "weighting_tab")
+  })
+  
+  # Show more about weighting text
+  observeEvent(input$read_more_weighting, {
+    showModal(modalDialog(
+      title = NULL,
+      HTML(
+        "<h4><strong><center>Poststratifikacijsko uteževanje anket</center></strong></h4>
+          </br>
+          S poststratifikacijskim uteževanjem porazdelitve izbranih, običajno demografskih, spremenljivk z vzorca uskladimo z znano populacijsko (ciljno) porazdelitvijo teh spremenljivk.
+          V aplikaciji je implementirana v praksi najpogosteje uporabljena metoda uteževanja raking (implementirana v programskem jeziku R v paketu anesrake), ki deluje tako, da ponavlja postopek 
+          poststratifikacije iterativno za vsako izbrano spremenljivko posebej, dokler se vzorčni deleži ne približajo populacijskim dovolj natančno.
+          </br></br>           
+          Tako uteževanje proizvede uteži, ki zagotovijo, da se uteženi rezultati anket ujemajo s populacijskimi (ciljnimi) porazdelitvami izbranih spremenljivk. Uporaba teh uteži v statističnih analizah
+          tako lahko pomaga zmanjšati vzorčno pristranskost, ki nastane, ker so določeni segmenti populacije v anketah premalo zastopani (npr. zaradi neodgovora ali nepokritja). Uteži
+          takim segmentom iz vzorca pripišejo večjo vrednost, medtem ko preveč zastopanim pripišejo manjši pomen."),
+      easyClose = TRUE,
+      size = "l",
+      footer = modalButton(icon("xmark"))
+    ))
+  })
+  
+  # Data upload tab -------------------------------------------------------------
+  
+  raw_data <- reactive({
+    req(input$upload_raw_data)
+
+    load_file(path = input$upload_raw_data$datapath,
+              ext = input$raw_data_file_type,
+              decimal_sep = input$decimal_separator,
+              delim = input$delimiter,
+              na_strings = input$na_strings)
+  })
+  
+  output$raw_data_table <- renderDT({
+    req(input$upload_raw_data)
+    
+    if(input$raw_data_file_type == "sav"){
+      tryCatch({
+        raw_data <- haven::as_factor(zap_missing(raw_data()), levels = "both")
+      },
+      error = function(e){
+        validate("Podatkov ni bilo mogoče naložiti. Preverite, da ste izbrali pravo končnico datoteke ali pravi separator oziroma decimalno ločilo.")
+      })
+      
+    } else{
+      raw_data <- raw_data()
+    }
+    
+    datatable(data = raw_data,
+              class = "nowrap cell-border hover bordered-header",
+              rownames = FALSE,
+              options = list(dom = "ltip",
+                             scrollX = TRUE))
+  })
+
+  # Select variables tab -------------------------------------------------------
+
+  observe({
+    updatePickerInput(session = session,
+                      inputId = "one_dim_variables",
+                      choices = names(raw_data()))
+  })
+  
+  observe({
+    updatePickerInput(session = session,
+                      inputId = "two_dim_variables",
+                      choices = names(raw_data()))
+  })
+  
+  observeEvent(input$upload_raw_data, {
+    shinyjs::enable(id = "add")
+    shinyjs::enable(id = "download_excel_input")
+    lapply(seq_len(input$add), function(i) removeUI(selector = paste0("div:has(> #two_dim_variables",i,")")))
+    lapply(seq_len(input$add), function(i) session$sendCustomMessage(type = "resetValue", message = paste0("two_dim_variables", i)))
+  })
+  
+  observeEvent(input$add, {
+    insertUI(
+      selector = "#add",
+      where = "beforeBegin",
+      ui =
+        pickerInput(
+          inputId = paste0("two_dim_variables",input$add),
+          label = NULL,
+          choices = names(raw_data()),
+          options = pickerOptions(actionsBox = TRUE,
+                                  liveSearch = TRUE,
+                                  maxOptions = 2),
+          multiple = TRUE))
+  })
+  
+  all_two_dim_vars <- reactive({
+    c(list(input$two_dim_variables),
+      lapply(seq_len(input$add), function(i) input[[paste0("two_dim_variables", i)]]))
+  })
+  
+  output$selected_variables <- renderText({
+    if(all(is.null(unlist(all_two_dim_vars()))) && is.null(input$one_dim_variables)){
+      return(NULL)
+      
+    } else if(all(is.null(unlist(all_two_dim_vars())))){
+      paste("<strong>Izbrane spremenljivke:</strong> <i>", 
+            paste(input$one_dim_variables, collapse = ", "),"</i>")
+      
+    } else if(is.null(input$one_dim_variables)){
+      paste("<strong>Izbrane spremenljivke:</strong> <i>", 
+            paste(sapply(all_two_dim_vars(), paste, collapse = " x "), collapse = ", "),"</i>")
+      
+    } else {
+      paste0("<strong>Izbrane spremenljivke:</strong> <i>", 
+             paste(input$one_dim_variables, collapse = ", "),", ",
+             paste(sapply(all_two_dim_vars(), paste, collapse = " x "), collapse = ", "), "</i>")
+    }
+  })
+  
+  output$preview_tables <- renderUI({
+    displayed_tables <- display_tables(orig_data = raw_data(),
+                                       one_dimensional_raking_variables = input$one_dim_variables,
+                                       two_dimensional_raking_variables = all_two_dim_vars(),
+                                       drop_zero = input$drop_zero_categories,
+                                       drop_zero_missing = input$drop_missings_categories)
+    n_tabs <- length(displayed_tables)
+    
+    displayed_tabs <- lapply(seq_len(n_tabs), function(i){
+      tabPanel(title = names(displayed_tables)[[i]],
+               br(),
+               renderTable(displayed_tables[[i]], hover = TRUE, bordered = TRUE, spacing = "xs", align = "c",
+                           caption = attr(x = raw_data()[[names(displayed_tables)[i]]], which = "label"),
+                           caption.placement = "top"))})
+    
+    do.call(tabsetPanel, displayed_tabs)
+  })
+  
+
+  # Excel file for margins input --------------------------------------------
+  
+  output$download_excel_input <- downloadHandler(
+    filename = function() {
+      paste0("Vnos_margin.xlsx")
+    },
+    
+    content = function(file) {
+      if(is.null(input$one_dim_variables) && is.null(unlist(all_two_dim_vars()))){
+        showModal(modalDialog(HTML("<strong><center>Ni izbrane nobene spremenljivke</center></strong>"),
+                              easyClose = TRUE,
+                              footer = modalButton(icon("xmark"))))
+        return()
+      }
+      
+      # Shows message when file is loading and closes it when it is finished
+      showModal(modalDialog(HTML("<h3><center>Prenašanje datoteke</center></h3>"),
+                            shinycssloaders::withSpinner(uiOutput("loading"), type = 8),
+                            footer = NULL))
+      on.exit(removeModal())
+      
+      input_file_output_tables_excel(orig_data = raw_data(),
+                                     one_dimensional_raking_variables = input$one_dim_variables,
+                                     two_dimensional_raking_variables = all_two_dim_vars(),
+                                     file_name = file, 
+                                     drop_zero = input$drop_zero_categories,
+                                     drop_zero_missing = input$drop_missings_categories)
+    })
+  
+  
+  # Input margins in App -------------------------------------------------------
+  
+  inputed_tables <- reactive({
+    input_tables(orig_data = raw_data(),
+                 one_dimensional_raking_variables = input$one_dim_variables,
+                 two_dimensional_raking_variables = all_two_dim_vars(),
+                 drop_zero = input$drop_zero_categories,
+                 drop_zero_missing = input$drop_missings_categories)
+  })
+  
+  clean_names <- reactive({
+    names(inputed_tables())
+  })
+  
+  # Reset input table on active tab
+  observeEvent(input$render_input_tables, {
+    lapply(seq_len(length(inputed_tables())), function(i) {
+      output[[paste0('input_table_', clean_names()[[i]])]] <- renderRHandsontable({
+        rhandsontable(inputed_tables()[[i]])
+      })
+    })
+  })
+  
+  # Render input tables
+  output$hot_tables <- renderUI({
+    lapply(seq_len(length(inputed_tables())), function(i) {
+      output[[paste0('input_table_', clean_names()[[i]])]] <- renderRHandsontable({
+        rhandsontable(inputed_tables()[[i]])
+      })
+    })
+    
+    inputed_tabs <- lapply(seq_len(length(inputed_tables())), function(i){
+      tabPanel(title = clean_names()[[i]],
+               br(),
+               column(10,
+                      rHandsontableOutput(paste0("input_table_", clean_names()[[i]])),
+                      br(),
+                      br()),
+               column(2,
+                      htmlOutput(paste0("input_sum_message_", clean_names()[[i]])),
+                      htmlOutput(paste0("input_error_header_", clean_names()[[i]])),
+                      htmlOutput(paste0("input_error_messages1_", clean_names()[[i]])),
+                      htmlOutput(paste0("input_error_messages2_", clean_names()[[i]])),
+                      htmlOutput(paste0("input_warning_header_", clean_names()[[i]])),
+                      htmlOutput(paste0("input_warning_messages_", clean_names()[[i]])),
+                      htmlOutput(paste0("input_recommend_messages_", clean_names()[[i]]))))})
+    
+    do.call(tabsetPanel, inputed_tabs)
+  })
+  
+  # Calculate population margins based on user inputted values
+  observe({
+    lapply(seq_len(length(inputed_tables())), function(i) {
+      if(!is.null(input[[paste0("input_table_", clean_names()[[i]])]])){
+        df <- as.data.frame(hot_to_r(input[[paste0("input_table_", clean_names()[[i]])]]))
+        n <- nrow(df)
+        n_col <- ncol(df)
+        n_miss <- NULL # prepare object to include posititon of potential missing rows so they can be highlighted
+        
+        if(n_col == 5){
+          if(any(df[,1] == "Missing")){
+            val_sample <- df[df[,1] == "Missing", 3]
+            val_user <- df[df[,1] == "Missing", 5]
+            n_miss <- which(df[,1] == "Missing") # rows with Missing category/ies
+            
+            df[n_miss, 4] <- 
+              ifelse(val_sample == 0 & val_user == 0, 0,
+                     ifelse(val_sample != 0 & val_user == 0, val_sample,
+                            ifelse(val_sample == 0 & val_user != 0, val_sample,
+                                   ifelse(val_sample != 0 & val_user != 0 & val_user > val_sample, val_sample,
+                                          ifelse(val_sample != 0 & val_user != 0 & val_user <= val_sample, val_user, 0)))))
+            
+            val_miss <- sum(df[n_miss, 4])
+            
+            df[-c(n_miss,n),4] <- (df[-c(n_miss,n),5]*(100 - val_miss))/(sum(df[-c(n_miss,n),5]))
+            
+          } else{
+            df[-n,4] <- (df[-n,5]/sum(df[-n,5]))*100
+          } 
+          
+        } else if(n_col == 6){
+          if(any(df[,1] == "Missing") || any(df[,2] == "Missing")){
+            val_sample <- df[df[,1] == "Missing" | df[,2] == "Missing", 4]
+            val_user <- df[df[,1] == "Missing" | df[,2] == "Missing", 6]
+            n_miss <- which(df[,1] == "Missing" | df[,2] == "Missing") # rows with Missing category/ies
+            
+            df[n_miss, 5] <- 
+              ifelse(val_sample == 0 & val_user == 0, 0,
+                     ifelse(val_sample != 0 & val_user == 0, val_sample,
+                            ifelse(val_sample == 0 & val_user != 0, val_sample,
+                                   ifelse(val_sample != 0 & val_user != 0 & val_user > val_sample, val_sample,
+                                          ifelse(val_sample != 0 & val_user != 0 & val_user <= val_sample, val_user, val_sample)))))
+            
+            val_miss <- sum(df[n_miss, 5])
+            
+            df[-c(n_miss,n),5] <- (df[-c(n_miss,n),6]*(100 - val_miss))/(sum(df[-c(n_miss,n),6]))
+          } else{
+            df[-n,5] <- (df[-n,6]/sum(df[-n,6]))*100
+          } 
+        }
+
+        col_highlight <- n_col - 1
+        row_highlight_error <- which((df[,n_col-1] == 0 & df[,n_col-3] > 0) | (df[,n_col-1] > 0 & df[,n_col-3] == 0))
+        
+        row_highlight_critical <- which(df[,n_col-1] > 0 & df[,n_col-1] < 1)
+        row_highlight_critical <- row_highlight_critical[row_highlight_critical %in% n_miss == FALSE]
+        
+        row_highlight_small <- which(df[,n_col-1] >= 1 & df[,n_col-1] <= 5)
+        row_highlight_small <- row_highlight_small[row_highlight_small %in% n_miss == FALSE]
+        
+        col_highlight_sample <- n_col - 3
+        row_highlight_critical_sample <- which(df[,n_col-3] >= 1 & df[,n_col-3] <= 4)
+        row_highlight_critical_sample <- row_highlight_critical_sample[row_highlight_critical_sample %in% n_miss == FALSE]
+        
+        row_highlight_small_sample <- which(df[,n_col-3] >= 5 & df[,n_col-3] <= 9)
+        row_highlight_small_sample <- row_highlight_small_sample[row_highlight_small_sample %in% n_miss == FALSE]
+        
+        df[n,n_col-1] <- sum(df[-n,n_col-1])
+        df[n,n_col] <- sum(df[-n,n_col])
+
+        output[[paste0("input_table_", clean_names()[[i]])]] <- renderRHandsontable({
+          rhandsontable(df,
+                        rowHeaders = NULL,  contextMenu = FALSE, stretchH = "all",
+                        # 1 must be deducted because JS start counting at 0 but R at 1
+                        customBorders = list(list(
+                          range = list(from = list(row = 0, col = n_col-1),
+                                       to = list(row = n-2, col = n_col-1)),
+                          top = list(width = 2, color = "#337ab7"),
+                          left = list(width = 2, color = "#337ab7"),
+                          bottom = list(width = 2, color = "#337ab7"),
+                          right = list(width = 2, color = "#337ab7"))),
+                        col_highlight = col_highlight - 1,
+                        row_highlight_error = row_highlight_error - 1,
+                        row_highlight_critical = row_highlight_critical - 1,
+                        row_highlight_small = row_highlight_small - 1,
+                        miss_row = n_miss - 1,
+                        col_highlight_sample = col_highlight_sample - 1,
+                        row_highlight_critical_sample = row_highlight_critical_sample - 1,
+                        row_highlight_small_sample = row_highlight_small_sample - 1,
+                        row_last = n - 1) %>%
+            hot_cols(renderer =
+                "function(instance, td, row, col, prop, value, cellProperties) {
+                  Handsontable.renderers.NumericRenderer.apply(this, arguments);
+                  
+                  if (instance.params) {
+                    hcols = instance.params.col_highlight
+                    hcols = hcols instanceof Array ? hcols : [hcols]
+                    
+                    hrowserror = instance.params.row_highlight_error
+                    hrowserror = hrowserror instanceof Array ? hrowserror : [hrowserror]
+                    
+                    hrowscritical = instance.params.row_highlight_critical
+                    hrowscritical = hrowscritical instanceof Array ? hrowscritical : [hrowscritical]
+                    
+                    hrowssmall = instance.params.row_highlight_small
+                    hrowssmall = hrowssmall instanceof Array ? hrowssmall : [hrowssmall]
+                    
+                    missrows = instance.params.miss_row
+                    missrows = missrows instanceof Array ? missrows : [missrows]
+                    
+                    if (hcols.includes(col) && hrowserror.includes(row)) {
+                      td.style.background = '#FF4B4B';
+                    }
+                    
+                    if (hcols.includes(col) && hrowscritical.includes(row)) {
+                      td.style.background = '#FFC000';
+                    }
+                    
+                    if (hcols.includes(col) && hrowssmall.includes(row)) {
+                      td.style.background = '#FFECAF';
+                    }
+                    
+                    if (missrows.includes(row)) {
+                      td.style.background = '#D9D9D9';
+                    }
+                    
+                    hcolssample = instance.params.col_highlight_sample
+                    hcolssample = hcolssample instanceof Array ? hcolssample : [hcolssample]
+                    
+                    hrowscriticalsample = instance.params.row_highlight_critical_sample
+                    hrowscriticalsample = hrowscriticalsample instanceof Array ? hrowscriticalsample : [hrowscriticalsample]
+                    
+                    hrowssmallsample = instance.params.row_highlight_small_sample
+                    hrowssmallsample = hrowssmallsample instanceof Array ? hrowssmallsample : [hrowssmallsample]
+                    
+                    if (hcolssample.includes(col) && hrowscriticalsample.includes(row)) {
+                      td.style.background = '#FFC000';
+                    }
+                    
+                    if (hcolssample.includes(col) && hrowssmallsample.includes(row)) {
+                      td.style.background = '#FFECAF';
+                    }
+                    
+                    lastrow = instance.params.row_last
+                    lastrow = lastrow instanceof Array ? lastrow : [lastrow]
+                    
+                    if (lastrow.includes(row)) {
+                      td.style.fontWeight = 'bold';
+                    }
+                  }
+                }" ) %>%  
+            hot_row(row = nrow(df), readOnly = TRUE) %>%
+            hot_col(col = 1:(n_col-1), readOnly = TRUE) %>%
+            hot_col(col = n_col-3, format = "0,0") %>% 
+            hot_col(col = (n_col-1):n_col, format = "0.00000") %>% 
+            hot_validate_numeric(cols = n_col, min = 0, max = 100)
+        })
+        
+        output[[paste0("input_sum_message_", clean_names()[[i]])]] <- renderText({
+          s <- df[n,n_col]
+          if((s != 1 && s != 100) && s != 0){
+            paste('<p style="background-color:#FFFF65;">&nbspVsota vnešenih margin ni 100%</p>')
+          }
+        })
+        
+        output[[paste0("input_error_header_", clean_names()[[i]])]] <- renderText({
+          if(length(row_highlight_error) != 0){
+            paste('<strong>Kritična opozorila (uteževanje ne bo delovalo):</strong> </br> </br>')
+          }
+        })
+        
+        output[[paste0("input_error_messages1_", clean_names()[[i]])]] <- renderText({
+          if(length(row_highlight_error) != 0 && any((df[-c(n_miss,n),n_col-1] == 0 & df[-c(n_miss,n),n_col-3] > 0))){
+            paste('<p style="background-color:#FF4B4B;">&nbspNičelna populacijska in neničelna vzorčna margina</p>')
+          }
+        })
+        
+        output[[paste0("input_error_messages2_", clean_names()[[i]])]] <- renderText({
+          if(length(row_highlight_error) != 0 && any((df[-c(n_miss,n),n_col-1] > 0 & df[-c(n_miss,n),n_col-3] == 0))){
+            paste('<p style="background-color:#FF4B4B;">&nbspNeničelna populacijska in ničelna vzorčna margina</p>')
+          }
+        })
+        
+        output[[paste0("input_warning_header_", clean_names()[[i]])]] <- renderText({
+          if(any(length(row_highlight_critical) != 0,
+                 length(row_highlight_critical_sample) != 0,
+                 length(row_highlight_small) != 0,
+                 length(row_highlight_small_sample) != 0)){
+            paste('<br/><strong>Priporočila: </br>
+                  <small>(priporočena je priključitev obarvanih kategorij k vsebinsko podobni kategoriji)</small></strong> </br> </br>')
+          }
+        })
+        
+        output[[paste0("input_warning_messages_", clean_names()[[i]])]] <- renderText({
+          if(length(row_highlight_critical) != 0 && length(row_highlight_critical_sample) != 0){
+            paste('<p style="background-color:#FFC000;">&nbspKritično majhne celice (n < 5) in populacijske margine (< 1%)</p>')
+          } else if(length(row_highlight_critical) != 0 && length(row_highlight_critical_sample) == 0){
+            paste('<p style="background-color:#FFC000;">&nbspKritično majhne populacijske margine (< 1%)</p>')
+          } else if(length(row_highlight_critical) == 0 && length(row_highlight_critical_sample) != 0){
+            paste('<p style="background-color:#FFC000;">&nbspKritično majhne celice (n < 5)</p>')
+          }
+        })
+        
+        output[[paste0("input_recommend_messages_", clean_names()[[i]])]] <- renderText({
+          if(length(row_highlight_small) != 0 && length(row_highlight_small_sample) != 0){
+            paste('<p style="background-color:#FFECAF;">&nbspMajhne celice (n < 10) in populacijske margine (< 5%)</p>')
+          } else if(length(row_highlight_small) != 0 && length(row_highlight_small_sample) == 0){
+            paste('<p style="background-color:#FFECAF;">&nbspMajhne populacijske margine (< 5%)</p>')
+          } else if(length(row_highlight_small) == 0 && length(row_highlight_small_sample) != 0){
+            paste('<p style="background-color:#FFECAF;">&nbspMajhne celice (n < 10)</p>')
+          }
+        })
+      }
+    })
+  })
+  
+  output$download_inputed_tables <- downloadHandler(
+    filename = function() {
+      paste0("Vnesene_margine.Rdata")
+    },
+    
+    content = function(file) {
+      if(is.null(input$one_dim_variables) && is.null(unlist(all_two_dim_vars()))){
+        showModal(modalDialog(HTML("<strong><center>Ni izbrane nobene spremenljivke</center></strong>"),
+                              easyClose = TRUE,
+                              footer = modalButton(icon("xmark"))))
+        return()
+      }
+      
+      results_list <- lapply(seq_len(length(inputed_tables())), function(i) {
+        hot_to_r(input[[paste0("input_table_", clean_names()[[i]])]])
+      })
+      
+      names(results_list) <- clean_names()
+      
+      save(object = results_list, file = file)
+    })
+
+  # Weighting tab ---------------------------------------------------------------
+    
+  output$which_weighting_vars <- renderUI({
+    input_true <- lapply(seq_len(length(inputed_tables())), function(i) {
+      is.null(input[[paste0("input_table_", clean_names()[[i]])]])
+    }) # TOLE PREGLEJ
+    
+    file_input <- fileInput(inputId = "upload_margins_data", 
+                            label = "Naloži datoteko z vnešenimi populacijskimi marginami",
+                            multiple = FALSE,
+                            accept = c(".xlsx", ".Rdata"),
+                            buttonLabel = "Naloži datoteko")
+    
+    if(all(unlist(input_true))) {
+      file_input
+      
+    } else {
+      tagList(
+        radioButtons("radio_which_weighting_vars", 
+                     label = "Katere populacijske (ciljne) margine želite upoštevati?",
+                     choices = c("Na novo vnešene v zavihku Vnos margin v aplikaciji" = "newly_inputed",
+                                 "Shranjene od prej (v Excel ali Rdata datoteki)" = "saved_inputed")),
+        conditionalPanel(condition = "input.radio_which_weighting_vars == 'saved_inputed'",
+                         file_input)
+      )
+    } 
+  })
+  
+  margins_data <- reactive({
+    if(isTRUE(input$radio_which_weighting_vars == "newly_inputed")){
+      sheet_list <- lapply(seq_len(length(inputed_tables())), function(i) {
+        hot_to_r(input[[paste0("input_table_", clean_names()[[i]])]])
+      })
+      
+      names(sheet_list) <- clean_names()
+      return(list(sheet_names = names(sheet_list),
+                  sheet_list = sheet_list))
+      
+    } else if(!is.null(input$upload_margins_data) || isTRUE(input$radio_which_weighting_vars == "saved_inputed")){
+      
+      ext <- tools::file_ext(input$upload_margins_data$name)
+      
+      validate(need(ext %in% c("xlsx", "Rdata"), message = FALSE))
+      
+      if(ext == "xlsx"){
+        sheet_names <- openxlsx::getSheetNames(input$upload_margins_data$datapath)
+        sheet_list <- lapply(sheet_names, function(sn){openxlsx::read.xlsx(input$upload_margins_data$datapath, sheet = sn)})
+        
+        # ensure that full variable names are shown, because Excel sheet names are limited to 31 characters
+        variable_names <- unlist(lapply(sheet_list, FUN = function(x){
+          # PREVERI TOLE
+          validate(need("Frekvenca" %in% names(x)[1:3], message = "Oblika datoteke se ne ujema s predvideno. Naložite pravo Excel datoteko."))
+          
+          var_names <- names(x)[1:2][names(x)[1:2] != "Frekvenca"]
+          
+          # Check if variables are present in uploaded data
+          validate(need(any(var_names %in% names(raw_data())),
+                        message = "Izbrane spremenljivke ne obstajajo v naloženih podatkih"))
+          
+          if(length(var_names) == 2){
+            paste0(var_names, collapse = " x ")
+          } else {
+            var_names
+          }
+        }))
+        
+        names(sheet_list) <- variable_names
+        sheet_names <- variable_names
+        
+      } else if(ext == "Rdata"){
+        sheet_list <- load_to_environment(input$upload_margins_data$datapath)
+        sheet_names <- names(sheet_list)
+      }
+      
+      return(list(sheet_names = sheet_names,
+                  sheet_list = sheet_list))
+    } 
+  })
+  
+  output$weighting_variables_input_messages <- renderText({
+    req(input$upload_margins_data)
+    
+    if(!(tools::file_ext(input$upload_margins_data$name) %in% c("xlsx", "Rdata"))){
+      validate("Naložite Excel (.xlsx) ali .Rdata datoteko, ki ste jo prenesli v zavihku Vnos populacijskih margin.")
+    } else if(is.null(input$upload_raw_data)){
+      validate("Naložite podatke v zavihku Nalaganje podatkov.")
+    }
+  })
+  
+  # Weighting variables selection
+  observe({
+    updatePickerInput(session = session,
+                      inputId = "weights_variables",
+                      choices = margins_data()[["sheet_names"]],
+                      selected = margins_data()[["sheet_names"]])
+  })
+  
+  # Case id variable selection
+  observe({
+    updatePickerInput(session = session,
+                      inputId = "case_id_variable", choices = names(raw_data()))
+  })
+  
+  # Base weights variable selection
+  observe({
+    updatePickerInput(session = session,
+                      inputId = "base_weights_variable",
+                      choices = names(raw_data()))
+  })
+  
+  # Perform weighting when button `run_weighting` is clicked
+  weighting_output <- eventReactive(input$run_weighting, {
+    if(input$cut_weights_iterative == TRUE){
+      cap <- input$cap_weights
+    } else {cap <- 999999}
+    
+    if(input$cut_weights_after == TRUE){
+      lower <- input$min_weight
+      upper <- input$max_weight
+    } else{
+      lower <- -Inf
+      upper <- Inf
+    }
+    
+    if(input$convergence_input == TRUE){
+      convcrit <- input$convergence_criterion
+    } else {convcrit <- 0.01}
+    
+    if(input$base_weights_selection == TRUE){
+      weightvec <- raw_data()[[input$base_weights_variable]]
+    } else {weightvec <- NULL}
+    
+    perform_weighting(orig_data = raw_data(),
+                      margins_data = margins_data(),
+                      all_raking_variables = input$weights_variables,
+                      case_id = input$case_id_variable,
+                      lower = lower,
+                      upper = upper,
+                      cap = cap, 
+                      convcrit = convcrit,
+                      weightvec = weightvec)
+  })
+
+  # Show weighting summary
+  output$code_summary <- renderText({
+    summ <- summary(weighting_output())
+    deff <- design_effect(weighting_output()$weightvec)
+    
+    HTML(paste("<b>Konvergenca:</b>", summ$converge, "</br></br>"),
+         paste("<b>Uteževalne spremenljivke:</b>", paste0(summ$raking.variables, collapse = ", "), "</br></br>"),
+         paste("<b>Privzete uteži:</b>", summ$base.weights, "</br></br>"),
+         paste0("<b>Vzorčni učinek (design effect): </b>", round(deff, 6), ". Porast vzorčne variance zaradi uteževanja: ", round((deff-1)*100,2), "%."))
+  })
+
+  output$weights_table <- renderDT({
+    datatable(data = data.frame(caseid = weighting_output()$caseid,
+                                weights = weighting_output()$weightvec),
+              rownames= FALSE,
+              class = "compact row-border hover",
+              options = list(dom = "t",
+                             paging = FALSE,
+                             scrollY = "500px",
+                             scrollCollapse = TRUE))
+  })
+  
+  selected_weighting_variables <- reactive({
+    if(!is.null(margins_data())){
+      sheet_names <- margins_data()[["sheet_names"]]
+      sheet_names <- sheet_names[sheet_names %in% input$weights_variables]
+      
+      sheet_list <- margins_data()[["sheet_list"]]
+      sheet_list <- sheet_list[sheet_names]
+      
+      list(sheet_names = sheet_names,
+           sheet_list = sheet_list)
+    }
+  })
+  
+  # Show weighting variables frequency tables
+  observe({
+    output$weighting_variables_tables <- renderUI({
+      n_tabs <- length(selected_weighting_variables()$sheet_names)
+      
+      displayed_tabs <- lapply(seq_len(n_tabs), function(i){
+        tabPanel(title = selected_weighting_variables()$sheet_names[i],
+                 br(),
+                 renderTable(display_tables_weighting_vars(orig_data = NULL,
+                                                           sheet_list_table = selected_weighting_variables()$sheet_list[[i]],
+                                                           weights = NULL),
+                             hover = TRUE, bordered = TRUE, spacing = "xs"))})
+      
+      do.call(tabsetPanel, displayed_tabs)
+    })
+  })
+  
+  observeEvent(input$run_weighting, {
+    output$weighting_variables_tables <- renderUI({ 
+      n_tabs <- length(selected_weighting_variables()$sheet_names)
+      
+      displayed_tabs <- lapply(seq_len(n_tabs), function(i){
+        tabPanel(title = selected_weighting_variables()$sheet_names[i],
+                 br(),
+                 renderTable(display_tables_weighting_vars(orig_data = raw_data(),
+                                                           sheet_list_table = selected_weighting_variables()$sheet_list[[i]],
+                                                           weights = weighting_output()$weightvec),
+                             hover = TRUE, bordered = TRUE, spacing = "xs"))})
+      
+      do.call(tabsetPanel, displayed_tabs)
+    })
+  })
+  
+  
+  # Show distribution of weights
+  output$weights_plot <- renderPlot({
+    vec <- weighting_output()$weightvec
+    hist(x = vec,
+         xlab = NULL, ylab = NULL,
+         main = "Porazdelitev uteži",
+         xlim = c(0, max(vec) + 1),
+         breaks = seq(min(vec), max(vec), by = ((max(vec) - min(vec))/(length(vec)))),
+         adj = 0)
+  })
+  
+  # Show weights' descriptive statistics
+  output$summary_stat <- renderTable({
+    data.frame(t(unclass(summary(weighting_output()$weightvec))), check.names = FALSE)
+  },
+  caption =  "<b><span style='color: #333'> Opisne statistike uteži </b>",
+  caption.placement = "top")
+  
+  # Download weights file
+  output$jump_to_download_weights_ui <- renderUI({
+    if(!is.null(weighting_output())){
+      tagList(
+        actionButton("jump_to_download_weights",
+                     label = HTML("&nbspPojdi na prenos uteži"),
+                     icon = shiny::icon("arrow-up-right-from-square"),
+                     width = "100%",
+                     class = "btn-primary"),
+        br(),
+        br())
+    }
+  })
+  
+  observeEvent(input$jump_to_download_weights, {
+    updateTabsetPanel(session = session, inputId = "weighting_panel", selected = "download_weights_tab")
+  })
+  
+  output$download_weights <- downloadHandler(
+    filename = function() {
+      paste0(paste0("Utezi_", paste0(weighting_output()$varsused, collapse = "_")),".",input$select_weights_file_type)
+    },
+    content = function(file) {
+      download_weights(weights_object = weighting_output(),
+                       file_type = input$select_weights_file_type,
+                       file_name = file,
+                       separator = input$delimiter_weights,
+                       decimal = input$decimal_separator_weights,
+                       quote_col_names = input$quote_col_names_weights)
+    })
+  
+  # Download diagnostic file 
+  output$weighting_diagnostic_download_ui <- renderUI({
+    if(!is.null(weighting_output())){
+      downloadButton("diagnostic_file_download",
+                     label = HTML("&nbspPrenesi povzetek uteževanja"),
+                     icon = shiny::icon("file-excel"),
+                     class = "btn-secondary",
+                     style = "width: 100%;")
+    }
+  })
+  
+  output$diagnostic_file_download <- downloadHandler(
+    filename = function() {
+      paste0("Povzetek_utezevanja.xlsx")
+    },
+    content = function(file) {
+      download_weighting_diagnostic(weights_object = weighting_output(),
+                                    file_name = file)
+    })
+
+  # Analyses tab ----------------------------------------------------------------
+  
+  observe({
+    updatePickerInput(session = session,
+                      inputId = "numeric_variables", choices = names(raw_data()))
+  })
+  
+  observe({
+    updatePickerInput(session = session,
+                      inputId = "factor_variables", choices = names(raw_data()))
+  })
+  
+  observe({
+    updatePickerInput(session = session,
+                      inputId = "analyses_weight_variable", choices = names(raw_data()))
+  })
+  
+  # weights_vector <- reactive({
+  #   if(!is.null(input$analyses_weight_variable) && input$select_which_weights == "included_weights"){
+  #     weights <- raw_data()[[input$analyses_weight_variable]]
+  #     
+  #     if(sum(!is.na(weights)) != nrow(raw_data())){
+  #       validate("Selected variable for weights does not contain the same number of cases as uploaded data frame. Calculation of weighted statistics is not possible.")
+  #     }
+  #     
+  #     if(!is.numeric(weights)){
+  #       validate("Selected variable for weights is not numeric. Does selected variable represent poststratification weights?")
+  #     }
+  #     
+  #     return(weights)
+  #     
+  #   } else if(is.null(input$analyses_weight_variable) && input$select_which_weights == "included_weights"){
+  #     validate("No weights were selected.")
+  #     
+  #   } else {
+  #     if(input$select_which_weights == "new_weights" && input$run_weighting==0){
+  #       validate("No weights were provided.")
+  #     }
+  #     return(weighting_output()$weightvec)
+  #   }
+  # })
+  
+  weights_vector <- reactive({
+    if(!is.null(input$analyses_weight_variable) && input$select_which_weights == "included_weights"){
+      weights <- raw_data()[[input$analyses_weight_variable]]
+      
+      validate(
+      need((sum(!is.na(weights)) == nrow(raw_data())) && is.numeric(weights), message = FALSE))
+      
+      return(weights)
+      
+      # if((sum(!is.na(weights)) == nrow(raw_data())) && is.numeric(weights)){
+      #   return(weights)
+      # }
+      
+    } else {
+      return(weighting_output()$weightvec)
+    }
+  })
+  
+  # Display warning/error messages for selected weights variable
+  output$weights_message <- renderText({
+    if(input$run_numeric_variables != 0 || input$run_factor_variables != 0){
+      if(!is.null(input$analyses_weight_variable) && input$select_which_weights == "included_weights"){
+        weights <- raw_data()[[input$analyses_weight_variable]]
+        
+        if(sum(!is.na(weights)) != nrow(raw_data())){
+          validate("Selected variable for weights does not contain the same number of cases as uploaded data frame. Calculation of weighted statistics is not possible.")
+        }
+        
+        if(!is.numeric(weights)){
+          validate("Selected variable for weights is not numeric. Does selected variable represent poststratification weights?")
+        }
+        
+        # DODATI ŠE OPOZORILO, ČE POVPREČJE UTEŽI NI ENAKO 1 (pazi na floating decimal!)
+        
+      } else if(is.null(input$analyses_weight_variable) && input$select_which_weights == "included_weights"){
+        validate("No weights were selected.")
+        
+      } else if(input$select_which_weights == "new_weights" && input$run_weighting==0){
+        validate("No weights were provided.")
+      }
+    }
+  })
+  
+  ### Numeric variables
+  weighted_numeric_table <- eventReactive(input$run_numeric_variables, {
+    req(input$numeric_variables)
+    
+    weighted_numeric_statistics(numeric_variables = input$numeric_variables,
+                                orig_data = raw_data(),
+                                weights = weights_vector())
+  })
+  
+  # Display message about removal of non-numeric variables when calculating descriptive statistics
+  output$message_numeric <- renderText({
+    req(input$run_numeric_variables)
+    
+    if((length(weighted_numeric_table()$non_numeric_vars) == 0) && (length(weighted_numeric_table()$non_calculated_vars) == 0)){
+      return(NULL)
+    } else if((length(weighted_numeric_table()$non_numeric_vars) != 0) && (length(weighted_numeric_table()$non_calculated_vars) == 0)){
+      paste("<small>Spremenljivke", paste(weighted_numeric_table()$non_numeric_vars, collapse = ", "),
+            "so bile pri izračunih izpuščene, ker vsebujejo neštevilske kategorije.</small> <hr/>")
+    } else if((length(weighted_numeric_table()$non_calculated_vars) != 0) && (length(weighted_numeric_table()$non_numeric_vars) == 0)){
+      paste("<small>Spremenljivke", paste(weighted_numeric_table()$non_calculated_vars, collapse = ", "),
+            "so bile pri izračunih izpuščene, ker imajo ničelno varianco in izračun testne statistike ni bil mogoč.</small> <hr/>")
+    } else {
+      paste("<small>Spremenljivke", paste(weighted_numeric_table()$non_numeric_vars, collapse = ", "),
+            "so bile pri izračunih izpuščene, ker vsebujejo neštevilske kategorije. <br/><br/>
+            Spremenljivke", paste(weighted_numeric_table()$non_calculated_vars, collapse = ", "),
+            "so bile pri izračunih izpuščene, ker imajo ničelno varianco in izračun testne statistike ni bil mogoč.</small> <hr/>")
+    }
+  })
+  
+  output$analyses_numeric_tables <- renderUI({
+    if(!is.null(weighted_numeric_table()$calculated_table)){
+      n_col <- ncol(weighted_numeric_table()$calculated_table)
+      
+      tagList(
+        p(HTML("<small>Signifikanca: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001</small>")),
+        datatable(weighted_numeric_table()$calculated_table,
+                  rownames= FALSE,
+                  class = "compact cell-border hover bordered-header",
+                  options = list(dom = "t",
+                                 paging = FALSE,
+                                 columnDefs = list(list(targets = 0:(n_col-1),
+                                                        className = "dt-center")))) %>% 
+          formatRound(columns = (n_col-10):(n_col-9), digits = 0) %>% 
+          formatRound(columns = (n_col-8):(n_col-1), digits = 2),
+        br())
+    }
+  })
+  
+  
+  ### Categorical (factor) variables
+  weighted_factor_tables <- eventReactive(input$run_factor_variables, {
+    req(input$factor_variables)
+    
+    n_tabs <- length(input$factor_variables)
+    
+    tables <- lapply(seq_len(n_tabs), function(i){
+      create_w_table(orig_data = raw_data(),
+                     variable = input$factor_variables[[i]],
+                     weights = weights_vector())
+    })
+    
+    names(tables) <- input$factor_variables
+    return(tables)
+  })
+  
+  output$analyses_factor_tables <- renderUI({
+    tagList(
+      p(HTML("<small>Signifikanca: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001</small>")),
+      lapply(seq_len(length(weighted_factor_tables())), function(i){
+        renderTable(weighted_factor_tables()[[i]],
+                    hover = TRUE, bordered = TRUE, spacing = "xs", width = "100%", align = "c", na = "",
+                    caption = attr(x = raw_data()[[names(weighted_factor_tables())[i]]], which = "label"),
+                    caption.placement = "top")
+      })
+    )
+  })
+  
+  
+  ### Download analyses numeric tables
+  output$download_numeric_analyses_ui <- renderUI({
+    if(!is.null(weighted_numeric_table()$calculated_table)){
+      downloadButton("numeric_analyses_file_download",
+                     label = HTML("&nbspPrenesi tabelo opisnih statistik"),
+                     icon = shiny::icon("file-excel"),
+                     class = "btn-secondary")
+    }
+  })
+  
+  output$numeric_analyses_file_download <- downloadHandler(
+    filename = function() {
+      paste0("Analiza_utezevanje_opisne_statistike.xlsx")
+    },
+    content = function(file) {
+      download_analyses_numeric_table(numeric_table = weighted_numeric_table()$calculated_table,
+                                      file = file)
+    })
+  
+  
+  ### Download analyses factor tables
+  output$download_factor_analyses_ui <- renderUI({
+    if(!is.null(weighted_factor_tables())){
+      downloadButton("factor_analyses_file_download",
+                     label = HTML("&nbspPrenesi frekvenčne tabele"),
+                     icon = shiny::icon("file-excel"),
+                     class = "btn-secondary")
+    }
+  })
+  
+  output$factor_analyses_file_download <- downloadHandler(
+    filename = function() {
+      paste0("Analiza_utezevanje_frekvencne_tabele.xlsx")
+    },
+    content = function(file) {
+      showModal(modalDialog(HTML("<h3><center>Prenašanje datoteke</center></h3>"),
+                            shinycssloaders::withSpinner(uiOutput("loading"), type = 8),
+                            footer = NULL))
+      on.exit(removeModal())
+      
+      download_analyses_factor_tables(factor_tables = weighted_factor_tables(),
+                                      orig_data = raw_data(),
+                                      variables = input$factor_variables,
+                                      file = file)
+    })
+  
+})
