@@ -18,4 +18,4 @@ To run app locally, first you need to install [R](https://cran.r-project.org/), 
 App will also be availabe as R package at a later date.
 
 
-Copyright (C) 2023  Luka Štrlekar Vasja Vehovar
+Copyright (C) 2023  Luka Štrlekar, Vasja Vehovar
