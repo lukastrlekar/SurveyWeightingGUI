@@ -17,10 +17,6 @@ source("Data_manipulation.R")
 source("Raking_script.R")
 source("Analyses_functions.R")
 
-# TODO
-# nadomestiti eventReactive in observeEvenet z bindEvent in preizkustiti še pohitritev z eventCache
-# if require package FALSE install.packages...
-
 
 shinyServer(function(input, output, session){
   
@@ -51,7 +47,22 @@ shinyServer(function(input, output, session){
   })
   
   observeEvent(input$jump_to_weighting_tab2, {
-    updateNavbarPage(session = session, inputId = "nav_menu", selected = "weighting_tab")
+    # first check if sum of user inputed values is every table is > 0
+    # if not display a reminder message
+    results <- unlist(lapply(seq_along(inputed_tables()), function(i) {
+      t <- hot_to_r(input[[paste0("input_table_", clean_names()[[i]])]])
+      t[nrow(t),ncol(t)] > 0
+    }))
+    
+    if(all(results) == FALSE || length(clean_names()) != length(results)){
+      showModal(modalDialog(HTML("<big><strong><center>Vnesite margine v vse tabele!</center></strong></big>"),
+                            easyClose = TRUE,
+                            footer = modalButton(icon("xmark"))))
+      return()
+      
+    } else {
+      updateNavbarPage(session = session, inputId = "nav_menu", selected = "weighting_tab")
+    }
   })
   
   # Show more about weighting text
@@ -233,7 +244,7 @@ shinyServer(function(input, output, session){
   
   # Reset input table on active tab
   observeEvent(input$render_input_tables, {
-    lapply(seq_len(length(inputed_tables())), function(i) {
+    lapply(seq_along(inputed_tables()), function(i) {
       output[[paste0('input_table_', clean_names()[[i]])]] <- renderRHandsontable({
         rhandsontable(inputed_tables()[[i]])
       })
@@ -242,13 +253,13 @@ shinyServer(function(input, output, session){
   
   # Render input tables
   output$hot_tables <- renderUI({
-    lapply(seq_len(length(inputed_tables())), function(i) {
+    lapply(seq_along(inputed_tables()), function(i) {
       output[[paste0('input_table_', clean_names()[[i]])]] <- renderRHandsontable({
         rhandsontable(inputed_tables()[[i]])
       })
     })
     
-    inputed_tabs <- lapply(seq_len(length(inputed_tables())), function(i){
+    inputed_tabs <- lapply(seq_along(inputed_tables()), function(i){
       tabPanel(title = clean_names()[[i]],
                br(),
                column(10,
@@ -269,12 +280,12 @@ shinyServer(function(input, output, session){
   
   # Calculate population margins based on user inputted values
   observe({
-    lapply(seq_len(length(inputed_tables())), function(i) {
+    lapply(seq_along(inputed_tables()), function(i) {
       if(!is.null(input[[paste0("input_table_", clean_names()[[i]])]])){
         df <- as.data.frame(hot_to_r(input[[paste0("input_table_", clean_names()[[i]])]]))
         n <- nrow(df)
         n_col <- ncol(df)
-        n_miss <- NULL # prepare object to include posititon of potential missing rows so they can be highlighted
+        n_miss <- NULL # create object to include posititon of potential missing rows so they can be highlighted
         
         if(n_col == 5){
           if(any(df[,1] == "Missing")){
@@ -496,7 +507,7 @@ shinyServer(function(input, output, session){
         return()
       }
       
-      results_list <- lapply(seq_len(length(inputed_tables())), function(i) {
+      results_list <- lapply(seq_along(inputed_tables()), function(i) {
         hot_to_r(input[[paste0("input_table_", clean_names()[[i]])]])
       })
       

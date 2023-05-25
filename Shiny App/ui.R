@@ -85,7 +85,14 @@ shinyUI(
                                p("Po izvedbi uteževanja prenesete datoteko z utežmi in jih uporabite v analizi podatkov v svojem najljubšem programu za statistično analizo.
                                     Dodatno lahko že v sami aplikaciji preverite spremembo povprečij in deležev spremenljivk po uteževanju.",
                                  class = "banner-text"),
-                        ))),
+                        )),
+                      fluidRow(align = "center",
+                               br(),
+                               hr(),
+                               p(HTML('&copy; 2023 Luka Štrlekar, Vasja Vehovar &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+                                       <a href="mailto:ls9889@student.uni-lj.si">Kontakt <i class="fa fa-envelope"></i></a> &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+                                       <a href="https://github.com/lukastrlekar/SurveyWeightingGUI" target="_blank" rel="noopener noreferrer">
+                                              Izvorna koda <i class="fa fa-github"></i></a>')))),
   
              # Data input tab -------------------------------------------------------
              tabPanel(title = "Nalaganje podatkov", value = "upload_data_tab", icon = shiny::icon("upload"),
@@ -152,7 +159,8 @@ shinyUI(
                                         choices = NULL,
                                         multiple = TRUE,
                                         options = pickerOptions(actionsBox = TRUE,
-                                                                liveSearch = TRUE))),
+                                                                liveSearch = TRUE,
+                                                                noneSelectedText = "Brez enodimenzionalnih tabel"))),
                                column(6,
                                       pickerInput(
                                         inputId = "two_dim_variables",
@@ -161,7 +169,8 @@ shinyUI(
                                         choices = NULL,
                                         options = pickerOptions(actionsBox = TRUE,
                                                                 liveSearch = TRUE,
-                                                                maxOptions = 2),
+                                                                maxOptions = 2,
+                                                                noneSelectedText = "Brez dvodimenzionalnih tabel"),
                                         multiple = TRUE),
                                       
                                       disabled(actionButton("add", label = NULL, icon = shiny::icon("plus"))))),
