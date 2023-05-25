@@ -156,7 +156,7 @@ download_weighting_diagnostic <- function(weights_object = NULL, file_name){
                   `raking variables:` = paste0(diagnostic$raking.variables, collapse = ", "),
                   `design effect:` = round(diagnostic$general.design.effect, 5))
   
-  addWorksheet(wb = wb, sheetName = "Basic info", gridLines = TRUE)
+  addWorksheet(wb = wb, sheetName = "Info", gridLines = TRUE)
   writeData(wb = wb,
             sheet = 1,
             x = tabela,
@@ -180,14 +180,16 @@ download_weighting_diagnostic <- function(weights_object = NULL, file_name){
   all_raking_variables <- weights_object$varsused
   
   for(i in seq_along(all_raking_variables)){
+    sheet_name <- substr(all_raking_variables[i], 1, 31)
+    
     addWorksheet(wb = wb,
-                 sheetName = all_raking_variables[i])
+                 sheetName = sheet_name)
     writeData(wb = wb,
-              sheet = all_raking_variables[i],
+              sheet = sheet_name,
               x = diagnostic[[all_raking_variables[i]]],
               rowNames = TRUE)
     setColWidths(wb = wb,
-                 sheet = all_raking_variables[i],
+                 sheet = sheet_name,
                  cols = 1:9,
                  widths = "auto")
   }
