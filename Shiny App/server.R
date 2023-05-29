@@ -48,7 +48,7 @@ shinyServer(function(input, output, session){
   
   observeEvent(input$jump_to_weighting_tab2, {
     # first check if sum of user inputed values is every table is > 0
-    # if not display a reminder message
+    # if not display a message
     results <- unlist(lapply(seq_along(inputed_tables()), function(i) {
       t <- hot_to_r(input[[paste0("input_table_", clean_names()[[i]])]])
       t[nrow(t),ncol(t)] > 0

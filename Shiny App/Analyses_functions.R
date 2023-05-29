@@ -60,6 +60,7 @@ display_tables_weighting_vars <- function(orig_data, sheet_list_table, weights){
 
 # weighted statistics for numeric variables
 weighted_numeric_statistics <- function(numeric_variables, orig_data, weights){
+  # select only numeric variables first
   true_numeric <- sapply(orig_data[,numeric_variables, drop = FALSE], FUN = function(x) is.numeric(x)|is.integer(x))
   non_numeric_vars <- numeric_variables[numeric_variables %in% names(true_numeric[true_numeric == FALSE])]
   
@@ -98,17 +99,26 @@ weighted_numeric_statistics <- function(numeric_variables, orig_data, weights){
          "p" = unname(test$coefficients["p.value"]))
   })
   
-  temp_df[["T-vrednost"]] <- abs(sapply(seq_along(statistic), FUN = function(i) statistic[[i]][[1]]))
-  temp_df[["P-vrednost"]] <- sapply(seq_along(statistic), FUN = function(i) statistic[[i]][[2]])
+  temp_df[["T-vrednost"]] <- abs(sapply(statistic, FUN = function(x) x[[1]]))
+  temp_df[["P-vrednost"]] <- sapply(statistic, FUN = function(x) x[[2]])
   temp_df[["Signifikanca"]] <- weights::starmaker(temp_df[["P-vrednost"]])
   
-  non_calculated_vars <- temp_df[which(is.na(temp_df[["T-vrednost"]])),"Spremenljivka"]
+  non_calculated_vars <- temp_df[which(is.na(temp_df[["T-vrednost"]])),"Spremenljivka"] # variables for which test statistic could not be calculated
   
   temp_df <- temp_df[which(!is.na(temp_df[["T-vrednost"]])),]
   
   return(list(calculated_table = temp_df,
               non_numeric_vars = non_numeric_vars,
               non_calculated_vars = non_calculated_vars))
+}
+
+
+# function to make dummy variable for every level of a factor variable
+make_dummies <- function(v) {
+  s <- sort(unique(v))
+  d <- outer(v, s, function(v, s) 1L * (v == s))
+   colnames(d) <- s
+  return(d)
 }
 
 # weighted statistics for categorical variables
@@ -133,20 +143,31 @@ create_w_table <- function(orig_data, variable, weights){
     temp_df[["Absolutna razlika deležev (v odstotnih točkah)"]] <- temp_df[[5]] - temp_df[[4]]
     temp_df[["Relativna razlika deležev (v %)"]] <-(temp_df[[6]]/temp_df[[4]])*100
     
-    n <- sum(temp_df[[3]])
+    # n <- sum(temp_df[[3]])
+    # 
+    # statistic <- lapply(1:nrow(temp_df), FUN = function(i){
+    #   test <- prop.test(x = temp_df[[3]][i], n = n, p = temp_df[[4]][i]/100, alternative = "two.sided", correct = TRUE)
+    #   
+    #   # square test statistic because R reports chi-square value for proportion test, squaring this gives z value
+    #   list("z" = unname(sqrt(test$statistic)),
+    #        "p" = unname(test$p.value))
+    # })
     
-    statistic <- lapply(1:nrow(temp_df), FUN = function(i){
-      test <- prop.test(x = temp_df[[3]][i], n = n, p = temp_df[[4]][i]/100, alternative = "two.sided", correct = TRUE)
+    # make dummy (0 1) variable for every category of a factor variable
+    dummies <- make_dummies(temp_var)
+    
+    # then perform weighted t-test on every dummy variable (mean = proportion)
+    statistic <- lapply(seq_len(ncol(dummies)), function(i){
+      test <- weights::wtd.t.test(x = dummies[ ,i, drop = FALSE],
+                                  y = mean(dummies[ ,i, drop = FALSE], na.rm = TRUE),
+                                  weight = weights)
       
-      # square test statistic because R reports chi-square value for proportion test, squaring this gives z value
-      list("z" = unname(sqrt(test$statistic)),
-           "p" = unname(test$p.value))
+      list("t" = unname(test$coefficients["t.value"]),
+           "p" = unname(test$coefficients["p.value"]))
     })
     
-    temp_df[["Z-vrednost"]] <- sapply(seq_along(statistic), FUN = function(i) statistic[[i]][[1]])
-    # POPRAVI
-    #sapply(statistic, FUN = function(x) x[[1]])
-    temp_df[["P-vrednost"]] <- sapply(seq_along(statistic), FUN = function(i) statistic[[i]][[2]])
+    temp_df[["T-vrednost"]] <- abs(sapply(statistic, FUN = function(x) x[[1]]))
+    temp_df[["P-vrednost"]] <- sapply(statistic, FUN = function(x) x[[2]])
     temp_df[["Signifikanca"]] <- weights::starmaker(temp_df[["P-vrednost"]])
       
     names(temp_df)[1:2] <- c(variable, "N pred uteževanjem")
@@ -164,7 +185,7 @@ create_w_table <- function(orig_data, variable, weights){
   }
 }
 
-#
+# functions for tables download
 download_analyses_numeric_table <- function(numeric_table, file){
   wb <- createWorkbook()
   
