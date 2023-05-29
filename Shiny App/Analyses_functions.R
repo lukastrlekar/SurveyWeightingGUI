@@ -117,7 +117,7 @@ weighted_numeric_statistics <- function(numeric_variables, orig_data, weights){
 make_dummies <- function(v) {
   s <- sort(unique(v))
   d <- outer(v, s, function(v, s) 1L * (v == s))
-   colnames(d) <- s
+  # colnames(d) <- s
   return(d)
 }
 

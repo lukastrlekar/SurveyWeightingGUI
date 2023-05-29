@@ -9,7 +9,19 @@ SurveyWeightingGUI is a web application built to make survey post-stratification
 
 ## Installation
 
-To run app locally, first you need to install [R](https://cran.r-project.org/), then run the following code in R console: `shiny::runGitHub(repo = "SurveyWeightingGUI", username = "lukastrlekar", ref = "main", subdir = "Shiny App")`
+To run app locally, first you need to install [R](https://cran.r-project.org/), then run the following code in R console: 
+
+```
+# install missing packages when running app locally from GitHub
+required_packages <- c("shiny", "shinyWidgets", "shinyjs", "shinycssloaders", "DT", "rhandsontable", "haven", "labelled", "openxlsx", "anesrake")
+
+for(p in required_packages){
+  if(!require(p, character.only = TRUE)) install.packages(p)
+}
+
+# run app
+shiny::runGitHub(repo = "SurveyWeightingGUI", username = "lukastrlekar", ref = "main", subdir = "Shiny App")
+```
 
 
 App will also be availabe as R package at a later date.
