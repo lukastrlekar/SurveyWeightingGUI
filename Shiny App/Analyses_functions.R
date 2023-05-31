@@ -68,12 +68,11 @@ weighted_numeric_statistics <- function(numeric_variables, orig_data, weights){
   
   selected_data <- labelled::user_na_to_na(orig_data[ ,numeric_variables, drop = FALSE])
   
-  # preveri tole!
-  variable_labels <- unlist(sapply(numeric_variables, FUN = function(x){
+  variable_labels <- sapply(numeric_variables, FUN = function(x){
     label <- attr(x = orig_data[[x]], which = "label")
     
     if(is.null(label)) "" else label 
-  }))
+  })
   
   temp_df <- data.frame("Spremenljivka" = numeric_variables)
   
@@ -90,9 +89,9 @@ weighted_numeric_statistics <- function(numeric_variables, orig_data, weights){
   temp_df[["Absolutna razlika"]] <- temp_df$`Uteženo povprečje` - temp_df$`Neuteženo povprečje`
   temp_df[["Relativna razlika (v %)"]] <- (temp_df$`Absolutna razlika`/temp_df$`Neuteženo povprečje`)*100
   
-  statistic <- lapply(seq_along(numeric_variables), function(i){
-    test <- weights::wtd.t.test(x = selected_data[[numeric_variables[i]]],
-                                y = mean(selected_data[[numeric_variables[i]]], na.rm = TRUE),
+  statistic <- lapply(numeric_variables, function(x){
+    test <- weights::wtd.t.test(x = selected_data[[x]],
+                                y = mean(selected_data[[x]], na.rm = TRUE),
                                 weight = weights)
     
     list("t" = unname(test$coefficients["t.value"]),
@@ -114,12 +113,12 @@ weighted_numeric_statistics <- function(numeric_variables, orig_data, weights){
 
 
 # function to make dummy variable for every level of a factor variable
-make_dummies <- function(v) {
-  s <- sort(unique(v))
-  d <- outer(v, s, function(v, s) 1L * (v == s))
-  # colnames(d) <- s
-  return(d)
-}
+# make_dummies <- function(v) {
+#   s <- sort(unique(v))
+#   d <- outer(v, s, function(v, s) 1L * (v == s))
+#   # colnames(d) <- s
+#   return(d)
+# }
 
 # weighted statistics for categorical variables
 create_w_table <- function(orig_data, variable, weights){
@@ -153,13 +152,13 @@ create_w_table <- function(orig_data, variable, weights){
     #        "p" = unname(test$p.value))
     # })
     
-    # make dummy (0 1) variable for every category of a factor variable
-    dummies <- make_dummies(temp_var)
+    # make dummy (0 1) variable for each level of a factor variable
+    dummies <- weights::dummify(x = temp_var, show.na = FALSE, keep.na = TRUE)
     
     # then perform weighted t-test on every dummy variable (mean = proportion)
     statistic <- lapply(seq_len(ncol(dummies)), function(i){
-      test <- weights::wtd.t.test(x = dummies[ ,i, drop = FALSE],
-                                  y = mean(dummies[ ,i, drop = FALSE], na.rm = TRUE),
+      test <- weights::wtd.t.test(x = dummies[ ,i],
+                                  y = mean(dummies[ ,i], na.rm = TRUE),
                                   weight = weights)
       
       list("t" = unname(test$coefficients["t.value"]),

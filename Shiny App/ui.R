@@ -461,8 +461,8 @@ shinyUI(
                                         helpText(strong("Preverjanje statistične značilnosti vpliva uteži (v izdelavi - uporaba na lastno odgovornost)")),
                                         helpText(HTML('Za številske spremenljivke se izračuna <a href="https://search.r-project.org/CRAN/refmans/weights/html/wtd.t.test.html" target="_blank">utežen t-test</a> 
                                         za en vzorec, kjer se preverja ničelna domneva, da je uteženo povprečje enako neuteženemu.
-                                        Za vsako kategorijo spremenljivke v frekvenčnih tabelah se izračuna <a href="https://search.r-project.org/R/refmans/stats/html/prop.test.html" target="_blank">z-test za delež</a> (z Yatesovim popravkom), 
-                                                      kjer se preverja ničelno domnevo, da je utežen delež enak neuteženemu.')))
+                                        Za vsako kategorijo spremenljivke v frekvenčnih tabelah se ustvari dihotomna indikatorska spremenljivka (0 1), ter na tej spremenljivki nato izračuna utežen t-test (povprečje = delež), 
+                                        kjer se preverja ničelno domnevo, da je utežen delež enak neuteženemu.')))
                                ))),
                       
                       column(12,
