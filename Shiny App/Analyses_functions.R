@@ -10,7 +10,7 @@ display_tables_weighting_vars <- function(orig_data, sheet_list_table, weights){
   #df <- na.omit(df) # tole popraviti
   # df <- df[-nrow(df),]
   
-  var_names1 <- c("Frekvenca", "Vzorcni %",	"Populacijski (ciljni) %")
+  var_names1 <- c("Frekvenca", "Vzorcni %", "Populacijski (ciljni) %")
   var_names2 <- gsub(pattern = " ", replacement = ".", x = var_names1, fixed = TRUE)
 
   df <- df[,unique(c(1:2,which(colnames(df) %in% c(var_names1, var_names2)))), drop = FALSE]
@@ -94,12 +94,12 @@ weighted_numeric_statistics <- function(numeric_variables, orig_data, weights){
                                 y = mean(selected_data[[x]], na.rm = TRUE),
                                 weight = weights)
     
-    list("t" = unname(test$coefficients["t.value"]),
-         "p" = unname(test$coefficients["p.value"]))
+    c("t" = unname(test$coefficients["t.value"]),
+      "p" = unname(test$coefficients["p.value"]))
   })
   
-  temp_df[["T-vrednost"]] <- abs(sapply(statistic, FUN = function(x) x[[1]]))
-  temp_df[["P-vrednost"]] <- sapply(statistic, FUN = function(x) x[[2]])
+  temp_df[["T-vrednost"]] <- abs(sapply(statistic, FUN = function(x) x[["t"]]))
+  temp_df[["P-vrednost"]] <- sapply(statistic, FUN = function(x) x[["p"]])
   temp_df[["Signifikanca"]] <- weights::starmaker(temp_df[["P-vrednost"]])
   
   non_calculated_vars <- temp_df[which(is.na(temp_df[["T-vrednost"]])),"Spremenljivka"] # variables for which test statistic could not be calculated
@@ -161,12 +161,12 @@ create_w_table <- function(orig_data, variable, weights){
                                   y = mean(dummies[ ,i], na.rm = TRUE),
                                   weight = weights)
       
-      list("t" = unname(test$coefficients["t.value"]),
-           "p" = unname(test$coefficients["p.value"]))
+      c("t" = unname(test$coefficients["t.value"]),
+        "p" = unname(test$coefficients["p.value"]))
     })
     
-    temp_df[["T-vrednost"]] <- abs(sapply(statistic, FUN = function(x) x[[1]]))
-    temp_df[["P-vrednost"]] <- sapply(statistic, FUN = function(x) x[[2]])
+    temp_df[["T-vrednost"]] <- abs(sapply(statistic, FUN = function(x) x[["t"]]))
+    temp_df[["P-vrednost"]] <- sapply(statistic, FUN = function(x) x[["p"]])
     temp_df[["Signifikanca"]] <- weights::starmaker(temp_df[["P-vrednost"]])
       
     names(temp_df)[1:2] <- c(variable, "N pred uteževanjem")
