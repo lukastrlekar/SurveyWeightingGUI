@@ -1,22 +1,6 @@
 # DATA READING AND MANIPULATION ------------------------------------------------------------
 
 # Read original raw data
-# load_file <- function(path, ext, decimal_sep, delim, na_strings) {
-#   tryCatch({
-#     switch(ext,
-#            # sav = foreign::read.spss(file = path,
-#            #                          to.data.frame = TRUE,
-#            #                          use.missings = TRUE,
-#            #                          use.value.labels = TRUE),
-#            sav = haven::read_sav(file = path, user_na = TRUE),
-#            rds = readRDS(file = path),
-#            csv = read.csv(file = path, header = TRUE, sep = delim, dec = decimal_sep, na.strings = trimws(strsplit(x = na_strings, split = ",")[[1]])),
-#            txt = read.delim(file = path, header = TRUE, sep = delim, dec = decimal_sep, na.strings = trimws(strsplit(x = na_strings, split = ",")[[1]])))
-#   },
-#   error = function(e){
-#     return(NULL)
-#   })
-# }
 load_file <- function(path, ext, decimal_sep, delim, na_strings) {
   switch(ext,
          # sav = foreign::read.spss(file = path,
@@ -28,7 +12,6 @@ load_file <- function(path, ext, decimal_sep, delim, na_strings) {
          csv = read.csv(file = path, header = TRUE, sep = delim, dec = decimal_sep, na.strings = trimws(strsplit(x = na_strings, split = ",")[[1]])),
          txt = read.delim(file = path, header = TRUE, sep = delim, dec = decimal_sep, na.strings = trimws(strsplit(x = na_strings, split = ",")[[1]])))
 }
-
 
 # Load the Rdata into a new environment to avoid side effects
 load_to_environment <- function(RData, env = new.env()) {

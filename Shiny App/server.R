@@ -18,7 +18,6 @@ source("Data_manipulation.R")
 source("Raking_script.R")
 source("Analyses_functions.R")
 
-
 shinyServer(function(input, output, session){
   
   ## Global settings
@@ -94,7 +93,8 @@ shinyServer(function(input, output, session){
                         ext = input$raw_data_file_type,
                         decimal_sep = input$decimal_separator,
                         delim = input$delimiter,
-                        na_strings = input$na_strings), silent = TRUE)
+                        na_strings = input$na_strings),
+              silent = TRUE)
     
     if(!is.data.frame(df)){
       shinyjs::show("message_wrong_raw_data")
@@ -104,44 +104,7 @@ shinyServer(function(input, output, session){
       shinyjs::hide("message_wrong_raw_data")
       return(df)
     }
-    
-    # tryCatch({
-    #   return(load_file(path = input$upload_raw_data$datapath,
-    #                    ext = input$raw_data_file_type,
-    #                    decimal_sep = input$decimal_separator,
-    #                    delim = input$delimiter,
-    #                    na_strings = input$na_strings))
-    #   
-    #   shinyjs::hide("message_wrong_raw_data")
-    # },
-    # error = function(e){
-    #   shinyjs::show("message_wrong_raw_data")
-    #   return(NULL)
-    # })
   })
-  
-  
-  # output$raw_data_table <- renderDT({
-  #   req(input$upload_raw_data)
-  #   
-  #   if(input$raw_data_file_type == "sav"){
-  #     tryCatch({
-  #       raw_data <- haven::as_factor(zap_missing(raw_data()), levels = "both")
-  #     },
-  #     error = function(e){
-  #       validate("Podatkov ni bilo mogoče naložiti. Preverite, da ste izbrali pravo končnico datoteke ali pravi separator oziroma decimalno ločilo.")
-  #     })
-  #     
-  #   } else{
-  #     raw_data <- raw_data()
-  #   }
-  #   
-  #   datatable(data = raw_data,
-  #             class = "nowrap cell-border hover bordered-header",
-  #             rownames = FALSE,
-  #             options = list(dom = "ltip",
-  #                            scrollX = TRUE))
-  # })
   
   output$raw_data_table <- renderDT({
     req(input$upload_raw_data)
@@ -160,7 +123,6 @@ shinyServer(function(input, output, session){
                                scrollX = TRUE))
     }
   })
-  
 
   # Select variables tab -------------------------------------------------------
 

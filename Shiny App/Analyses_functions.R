@@ -57,7 +57,6 @@ display_tables_weighting_vars <- function(orig_data, sheet_list_table, weights){
   return(df)
 }
 
-
 # weighted statistics for numeric variables
 weighted_numeric_statistics <- function(numeric_variables, orig_data, weights){
   # select only numeric variables first
@@ -110,7 +109,6 @@ weighted_numeric_statistics <- function(numeric_variables, orig_data, weights){
               non_numeric_vars = non_numeric_vars,
               non_calculated_vars = non_calculated_vars))
 }
-
 
 # function to make dummy variable for every level of a factor variable
 # make_dummies <- function(v) {

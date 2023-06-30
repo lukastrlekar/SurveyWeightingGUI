@@ -8,7 +8,6 @@ trim_weights <- function(weights, lower = -Inf, upper = Inf){
   return(new_weights)
 }
 
-
 # TODO
 # design effect preveri izračun in navedi vir
 
