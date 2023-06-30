@@ -3,6 +3,7 @@ suppressPackageStartupMessages({
   library(shinyWidgets)
   library(shinyjs)
   library(shinycssloaders)
+  library(shinyFeedback)
   library(DT)
   library(rhandsontable)
 })
@@ -22,6 +23,8 @@ shinyUI(
              # Home tab / instructions -------------------------------------------------
              tabPanel(title = "Domov", icon = shiny::icon("home"),
                       fluidRow(
+                        shinyFeedback::useShinyFeedback(), # include shinyFeedback
+                        
                         style = "background-color: #2e6da4;
                                   color: white;
                                   min-height: 20px;
@@ -142,6 +145,11 @@ shinyUI(
                       column(8,
                              h4(strong("Predogled naloženih podatkov")),
                              br(),
+                             
+                             hidden(p("Podatkov ni bilo mogoče naložiti. Preverite, da ste izbrali pravo končnico datoteke ali pravi separator oziroma decimalno ločilo.",
+                                      id = "message_wrong_raw_data",
+                                      style = "color:red;")),
+                             
                              shinycssloaders::withSpinner(
                                DT::DTOutput("raw_data_table")))),
              
@@ -159,8 +167,7 @@ shinyUI(
                                         choices = NULL,
                                         multiple = TRUE,
                                         options = pickerOptions(actionsBox = TRUE,
-                                                                liveSearch = TRUE,
-                                                                noneSelectedText = "Brez enodimenzionalnih tabel"))),
+                                                                liveSearch = TRUE))),
                                column(6,
                                       pickerInput(
                                         inputId = "two_dim_variables",
@@ -169,8 +176,7 @@ shinyUI(
                                         choices = NULL,
                                         options = pickerOptions(actionsBox = TRUE,
                                                                 liveSearch = TRUE,
-                                                                maxOptions = 2,
-                                                                noneSelectedText = "Brez dvodimenzionalnih tabel"),
+                                                                maxOptions = 2),
                                         multiple = TRUE),
                                       
                                       disabled(actionButton("add", label = NULL, icon = shiny::icon("plus"))))),
@@ -281,7 +287,21 @@ shinyUI(
                              br()),
                       column(4,
                              wellPanel(
-                               uiOutput("which_weighting_vars")),
+                               uiOutput("which_weighting_vars"),
+                               
+                               hidden(p(HTML("Naložite Excel (.xlsx) ali .Rdata datoteko, ki ste jo prenesli v zavihku <i>Vnos populacijskih margin</i>."),
+                                        id = "message_wrong_file",
+                                        style = "color:red;")),
+                               hidden(p(HTML("Naložite podatke v zavihku <i>Nalaganje podatkov</i>."),
+                                        id = "message_no_file",
+                                        style = "color:red;")),
+                               hidden(p("Oblika datoteke se ne ujema s predvideno. Naložite pravo Excel datoteko.",
+                                        id = "message_wrong_file_structure",
+                                        style = "color:red;")),
+                               hidden(p("Spremenljivke v podani datoteki ne obstajajo v naloženih podatkih.",
+                                        id = "message_no_variables_present",
+                                        style = "color:red;"))),
+                             
                              wellPanel(
                                pickerInput(
                                  inputId = "weights_variables",
@@ -365,8 +385,13 @@ shinyUI(
                                  tabsetPanel(id = "weighting_panel",
                                    tabPanel("Povzetek uteževanja", icon = shiny::icon("circle-info"),
                                             br(),
-                                            htmlOutput("weighting_variables_input_messages"),
-                                            #htmlOutput("weighting_variables"),
+                                            
+                                            hidden(p(HTML("Vklopili ste možnost <i>Upoštevaj tudi privzete uteži</i>, vendar niste izbrali spremenljivke uteži.
+                                                          Privzete uteži se zato niso upoštevale. <br/>"),
+                                                     id = "message_no_base_weights_selected",
+                                                     style = "color:red;")),
+                                            
+                                            # htmlOutput("weighting_variables_input_messages"),
                                             #tags$head(tags$style("#code_summary{overflow-y:scroll; max-height: 200px; background: white; border: white}")),
                                             shinycssloaders::withSpinner(
                                               htmlOutput("code_summary")),
@@ -428,7 +453,7 @@ shinyUI(
                                                      downloadButton("download_weights",
                                                                     label = HTML("&nbspPrenesi datoteko uteži"),
                                                                     icon = shiny::icon("file-arrow-down"),
-                                                                    class = "btn-secondary",
+                                                                    class = "btn-primary",
                                                                     style = "width: 50%;"))
                                             
                                    ))))),

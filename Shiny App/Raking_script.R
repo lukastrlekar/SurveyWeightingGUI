@@ -19,7 +19,7 @@ design_effect <- function(weights) {
   return(deff)
 }
 
-# prepare data for raking and perform it
+# prepare data for raking and perform raking
 perform_weighting <- function(orig_data = NULL,
                               margins_data,
                               all_raking_variables = NULL,
@@ -45,7 +45,7 @@ perform_weighting <- function(orig_data = NULL,
     names(x)[1:2][names(x)[1:2] != "Frekvenca"]
   })
   
-  selected_data <- orig_data[ ,unlist(variables), drop = FALSE]
+  selected_data <- orig_data[ ,unlist(variables), drop = FALSE] # unlist use.names ?
   
   selected_data[] <- lapply(selected_data, FUN = function(x){
     droplevels(clean_data(variable = x))
@@ -103,9 +103,9 @@ perform_weighting <- function(orig_data = NULL,
   }
   
   if(is.null(case_id)){
-    selected_data$caseid <- 1:nrow(selected_data)
+    selected_data$caseid <- seq_len(nrow(selected_data))
     
-  } else{
+  } else {
     selected_data$caseid <- orig_data[[case_id]]
   } 
   
@@ -145,18 +145,22 @@ download_weights <- function(weights_object = NULL,
 }
 
 
-download_weighting_diagnostic <- function(weights_object = NULL, file_name){
+download_weighting_diagnostic <- function(weights_object, file_name, cut_text, iter_cut_text){
   
   diagnostic <- summary(weights_object)
+  vec <- weights_object$weightvec
+  deff <- design_effect(vec)
   
   wb <- createWorkbook()
+
+  tabela <- rbind("Konvergenca:" = diagnostic$convergence,
+                  "Iterativno rezanje uteži:" = iter_cut_text, 
+                  "Rezanje uteži po koncu iteracij:" = cut_text,
+                  "Uteževalne spremenljivke:" = paste0(diagnostic$raking.variables, collapse = ", "),
+                  "Privzete uteži:" = diagnostic$base.weights,
+                  "Vzorčni učinek (design effect):" = paste0(round(deff, 5), ". Porast vzorčne variance zaradi uteževanja: ", round((deff-1)*100,2), "%."))
   
-  tabela <- rbind(`convergence:` = diagnostic$convergence,
-                  `base weights:` = diagnostic$base.weights,
-                  `raking variables:` = paste0(diagnostic$raking.variables, collapse = ", "),
-                  `design effect:` = round(diagnostic$general.design.effect, 5))
-  
-  addWorksheet(wb = wb, sheetName = "Info", gridLines = TRUE)
+  addWorksheet(wb = wb, sheetName = "Povzetek", gridLines = FALSE)
   writeData(wb = wb,
             sheet = 1,
             x = tabela,
@@ -164,18 +168,35 @@ download_weighting_diagnostic <- function(weights_object = NULL, file_name){
   
   writeData(wb = wb,
             sheet = 1,
-            x = round(diagnostic$weight.summary,3), startCol = 5, startRow = 8,
-            rowNames = FALSE, colNames = FALSE)
+            x = "Opisne statistike uteži",
+            startCol = 4, startRow = 1)
+  
+  writeData(wb = wb,
+            sheet = 1,
+            x = data.frame(t(unclass(summary(vec))), check.names = FALSE),
+            startCol = 4, startRow = 3, headerStyle = createStyle(halign = "center", textDecoration = "bold"),
+            rowNames = FALSE, colNames = TRUE)
+  
+  addStyle(wb = wb, sheet = 1,
+           style = createStyle(numFmt = "NUMBER", halign = "center"), rows = 4, cols = 4:9, gridExpand = TRUE)
   
   setColWidths(wb = wb,
                sheet = 1,
-               cols = 1:10,
+               cols = 1:2,
                widths = "auto")
   
-  # hist(weights_object$weightvec, xlab = NULL, main = "Distribution of weights")
+  setColWidths(wb = wb,
+               sheet = 1,
+               cols = 4:9,
+               widths = 8)
+  
+  # NOT ABLE TO MAKE IT WORK ON SHINY SERVER (WORKS LOCALLY THOUGH)
+  # my_plot <- hist(x = vec,
+  #                 xlim = c(0, max(vec) + 1),
+  #                 breaks = seq(min(vec), max(vec), by = ((max(vec) - min(vec))/(length(vec)))))
+  # 
   # insertPlot(wb = wb,
-  #            sheet = 1, startRow = 8, startCol = 1)
-  # popravi da bo plot delal
+  #            sheet = 1, startRow = 6, startCol = 4)
   
   all_raking_variables <- weights_object$varsused
   
@@ -183,11 +204,12 @@ download_weighting_diagnostic <- function(weights_object = NULL, file_name){
     sheet_name <- substr(all_raking_variables[i], 1, 31)
     
     addWorksheet(wb = wb,
-                 sheetName = sheet_name)
+                 sheetName = sheet_name,
+                 gridLines = FALSE)
     writeData(wb = wb,
               sheet = sheet_name,
               x = diagnostic[[all_raking_variables[i]]],
-              rowNames = TRUE)
+              rowNames = TRUE, borders = "all", headerStyle = createStyle(border = "TopBottomLeftRight"))
     setColWidths(wb = wb,
                  sheet = sheet_name,
                  cols = 1:9,

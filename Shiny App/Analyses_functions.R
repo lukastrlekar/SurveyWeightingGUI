@@ -82,7 +82,7 @@ weighted_numeric_statistics <- function(numeric_variables, orig_data, weights){
   
   temp_df[["N pred uteževanjem"]] <- colSums(!is.na(selected_data))
   temp_df[["N po uteževanju"]] <- apply(selected_data, 2, FUN = function(x) sum(weights[!is.na(x)]))
-  temp_df[["Min"]] <- apply(selected_data, 2, min, na.rm = TRUE)
+  temp_df[["Min"]] <- apply(selected_data, 2, min, na.rm = TRUE) # spremeni v sapply
   temp_df[["Max"]] <- apply(selected_data, 2, max, na.rm = TRUE)
   temp_df[["Neuteženo povprečje"]] <- colMeans(selected_data, na.rm = TRUE)
   temp_df[["Uteženo povprečje"]] <- apply(selected_data, 2, weighted.mean, w = weights, na.rm = TRUE)
@@ -94,8 +94,8 @@ weighted_numeric_statistics <- function(numeric_variables, orig_data, weights){
                                 y = mean(selected_data[[x]], na.rm = TRUE),
                                 weight = weights)
     
-    c("t" = unname(test$coefficients["t.value"]),
-      "p" = unname(test$coefficients["p.value"]))
+    c("t" = test$coefficients[["t.value"]],
+      "p" = test$coefficients[["p.value"]])
   })
   
   temp_df[["T-vrednost"]] <- abs(sapply(statistic, FUN = function(x) x[["t"]]))
@@ -137,10 +137,10 @@ create_w_table <- function(orig_data, variable, weights){
     
   } else {
     temp_df[["N po uteževanju"]] <- weighted_table(temp_var, weights = weights)
-    temp_df[["% pred uteževanjem"]] <- (temp_df$Freq/sum(temp_df$Freq))*100
-    temp_df[["% po uteževanju"]] <- (temp_df[[3]]/sum(temp_df[[3]]))*100
-    temp_df[["Absolutna razlika deležev (v odstotnih točkah)"]] <- temp_df[[5]] - temp_df[[4]]
-    temp_df[["Relativna razlika deležev (v %)"]] <-(temp_df[[6]]/temp_df[[4]])*100
+    temp_df[["Delež (%) pred uteževanjem"]] <- (temp_df$Freq/sum(temp_df$Freq))*100
+    temp_df[["Delež (%) po uteževanju"]] <- (temp_df[[3]]/sum(temp_df[[3]]))*100
+    temp_df[["Razlika v deležih - absolutna"]] <- temp_df[[5]] - temp_df[[4]]
+    temp_df[["Razlika v deležih - relativna (%)"]] <- (temp_df[[6]]/temp_df[[4]])*100
     
     # n <- sum(temp_df[[3]])
     # 
@@ -161,8 +161,8 @@ create_w_table <- function(orig_data, variable, weights){
                                   y = mean(dummies[ ,i], na.rm = TRUE),
                                   weight = weights)
       
-      c("t" = unname(test$coefficients["t.value"]),
-        "p" = unname(test$coefficients["p.value"]))
+      c("t" = test$coefficients[["t.value"]],
+        "p" = test$coefficients[["p.value"]])
     })
     
     temp_df[["T-vrednost"]] <- abs(sapply(statistic, FUN = function(x) x[["t"]]))
@@ -250,13 +250,6 @@ download_analyses_factor_tables <- function(factor_tables, orig_data, variables,
               sheet = 1,
               x = attr(x = orig_data[[variables[[i]]]], which = "label"),
               startCol = 1, startRow = start_rows[i] - 1)
-    
-    # addStyle(wb = wb,
-    #          sheet = 1,
-    #          style = createStyle(numFmt = "NUMBER"),
-    #          rows = start_rows[i]:(nrow(factor_tables[[i]]) + start_rows[i]),
-    #          cols = 3:9,
-    #          stack = TRUE, gridExpand = TRUE)
   }
   
   addStyle(wb = wb,
