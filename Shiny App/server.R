@@ -743,7 +743,9 @@ shinyServer(function(input, output, session){
   
   # Show weighting summary
   output$code_summary <- renderText({
-    summ <- summary(weighting_output())
+    req(input$run_weighting)
+    
+    summ <- try(summary(weighting_output()), silent = TRUE)
     deff <- design_effect(weighting_output()$weightvec)
     
     HTML(paste("<b>Konvergenca:</b>", summ$converge, "</br></br>"),
@@ -1121,7 +1123,7 @@ shinyServer(function(input, output, session){
       download_analyses_factor_tables(
         factor_tables = lapply(weighted_factor_tables, "[[", "calculated_table"),
         orig_data = raw_data(),
-        file = file)
+        file = file,
+        warning_indicator = any(unlist(lapply(weighted_factor_tables, "[[", "warning_indicator")), na.rm = TRUE))
     })
-  
 })

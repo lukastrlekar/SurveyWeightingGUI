@@ -332,7 +332,7 @@ shinyUI(
                                        conditionalPanel(condition = "input.case_id_selection == 1",
                                                         pickerInput(
                                                           inputId = "case_id_variable",
-                                                          label = HTML("<small>Izberi spremenljivko, ki predstavlja <i>case ID</i>:</small>"),
+                                                          label = HTML("<small>Izberi spremenljivko, ki predstavlja enolični identifikator enot:</small>"),
                                                           choices = NULL,
                                                           options = pickerOptions(
                                                             liveSearch = TRUE,
@@ -383,7 +383,7 @@ shinyUI(
                               checkboxInput("convergence_input",
                                             label = "Nastavi kriterij za konvergenco"),
                               conditionalPanel(condition = "input.convergence_input == 1",
-                                               p(HTML("<small>Raking algoritem konvergira, ko zadnja ponovitev predstavlja manj kot določeno odstotno izboljšanje glede na prejšnjo iteracijo.</small>")),
+                                               p(HTML("<small>Raking algoritem konvergira, ko zadnja ponovitev predstavlja manj kot nastavljeno odstotno izboljšanje glede na prejšnjo iteracijo.</small>")),
                                                column(4,
                                                       numericInput("convergence_criterion",
                                                                    label = NULL,

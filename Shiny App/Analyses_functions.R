@@ -216,7 +216,7 @@ create_w_table <- function(orig_data, variable, weights, p_adjust_method = NULL)
                          mu2 = mean(dummies[ ,i], na.rm = TRUE),
                          weights_x = weights,
                          prop = TRUE)
-      
+      # odstrani to
       c("z" = test[["t"]],
         "p" = test[["p"]])
     })
@@ -391,13 +391,94 @@ download_analyses_numeric_table <- function(numeric_table, file){
   saveWorkbook(wb = wb, file = file, overwrite = TRUE)
 }
 
-download_analyses_factor_tables <- function(factor_tables, orig_data, file){
+download_analyses_factor_tables <- function(factor_tables, orig_data, file, warning_indicator){
   wb <- createWorkbook()
   
   if(length(factor_tables) > 0){
     ## summary worksheet
+    addWorksheet(wb = wb,
+                 sheetName = "Povzetek",
+                 gridLines = FALSE)
     
+    categories <- abs(na.omit(do.call(rbind, lapply(factor_tables, "[", c(7, 9)))))
+    warning_numerus <- grepl(pattern = "!", x = na.omit(do.call(rbind, lapply(factor_tables, "[", 10))))
     
+    # temporarily replace p-values with small n with 1 so they are not counted in summary
+    if(any(warning_numerus)) categories[warning_numerus,][[2]] <- 1
+    
+    freq_rel_change <- count_rel_diff(vec = categories[[1]], p_vec = categories[[2]])
+    
+    tbl <- data.frame("Relativne razlike" = c("> 20%", "(10% - 20%]", "[5% - 10%]", "< 5%"),
+                      "f" = freq_rel_change$sums,
+                      "%" = freq_rel_change$sums/sum(freq_rel_change$sums),
+                      "Kumul f" = freq_rel_change$cumsums,
+                      "Kumul %" = freq_rel_change$cumsums/sum(freq_rel_change$sums),
+                      "f*" = freq_rel_change$p_sums,
+                      "% od vseh kategorij" = freq_rel_change$p_sums/sum(freq_rel_change$sums),
+                      "% od relativne razlike" = freq_rel_change$p_sums/freq_rel_change$sums,
+                      "Kumul f*" = freq_rel_change$p_cumsums,
+                      "Kumul %" = freq_rel_change$p_cumsums/sum(freq_rel_change$p_sums),
+                      check.names = FALSE)
+    
+    tbl[is.na(tbl)] <- 0
+    
+    writeData(wb = wb,
+              sheet = "Povzetek",
+              x = tbl,
+              borders = "all", startRow = 4, 
+              headerStyle = createStyle(textDecoration = "bold",
+                                        border = c("top", "bottom", "left", "right"),
+                                        halign = "center", valign = "center", wrapText = TRUE))
+    
+    writeData(wb = wb, sheet = "Povzetek",
+              x = "Povzetek sprememb deležev kategorij po uteževanju za opisne spremenljivke", startCol = 1, startRow = 1)
+    
+    mergeCells(wb = wb, sheet = "Povzetek", cols = 1:10, rows = 1)
+    
+    writeData(wb = wb, sheet = "Povzetek",
+              x = "Kategorije", startCol = 2, startRow = 3)
+    
+    mergeCells(wb = wb, sheet = "Povzetek", cols = 2:5, rows = 3)
+    
+    writeData(wb = wb, sheet = "Povzetek",
+              x = "Od tega statistično značilne kategorije (p < 0.05)",
+              startCol = 6, startRow = 3)
+    
+    mergeCells(wb = wb, sheet = "Povzetek", cols = 6:10, rows = 3)
+    
+    writeData(wb = wb, sheet = "Povzetek",
+              x = cbind(c(paste("Št. vseh kategorij:", sum(freq_rel_change$sums)),
+                          paste("Št. statistično značilnih kategorij (p < 0.05):", sum(freq_rel_change$p_sums)))),
+              startCol = 1, startRow = 10, rowNames = FALSE, colNames = FALSE)
+    
+    addStyle(wb = wb, sheet = "Povzetek",
+             style = createStyle(textDecoration = "bold",
+                                 halign = "center", valign = "center",
+                                 fontSize = 12),
+             rows = 1:2, cols = 1:10,
+             gridExpand = TRUE, stack = TRUE)
+    
+    addStyle(wb = wb, sheet = "Povzetek",
+             style = createStyle(textDecoration = "bold",
+                                 halign = "center", valign = "center",
+                                 border = c("top", "bottom", "left", "right")),
+             rows = 3, cols = 1:10,
+             gridExpand = TRUE, stack = TRUE)
+    
+    addStyle(wb = wb, sheet = "Povzetek",
+             style = createStyle(numFmt = "0%"),
+             rows = 5:8, cols = c(3, 5, 7, 8, 10),
+             gridExpand = TRUE, stack = TRUE)
+    
+    addStyle(wb = wb, sheet = "Povzetek",
+             style = createStyle(halign = "center"),
+             rows = 5:8, cols = 1:10,
+             gridExpand = TRUE, stack = TRUE)
+    
+    setColWidths(wb = wb, sheet = "Povzetek", cols = 1:10,
+                 widths = c(14, 5, 6, 8, 8, 5, 21, 21, 8, 8))
+    
+    setRowHeights(wb = wb, sheet = "Povzetek", rows = 1:4, heights = c(20, 20, 25, 44))
     
     ## frequency tables worksheet
     addWorksheet(wb = wb,
@@ -429,9 +510,16 @@ download_analyses_factor_tables <- function(factor_tables, orig_data, file){
               sheet = "Frekvencne_tabele",
               x = "Signifikanca: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001", xy = c(1, 1))
     
+    if(warning_indicator){
+      writeData(wb = wb,
+                sheet = "Frekvencne_tabele",
+                x = "! Število enot v celici je premajhno za zanesljivo oceno p vrednosti.", xy = c(1,2))
+      
+    }
+    
     addStyle(wb = wb, sheet = "Frekvencne_tabele",
              style = createStyle(fontSize = 9),
-             rows = 1, cols = 1)
+             rows = 1:2, cols = 1)
     
     addStyle(wb = wb,
              sheet = "Frekvencne_tabele",
