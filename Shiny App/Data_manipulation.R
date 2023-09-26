@@ -20,7 +20,12 @@ load_to_environment <- function(RData, env = new.env()) {
 }
 
 # Very quick one-dimensional weighted table function with no external dependencies
-weighted_table = function(x, weights) {
+weighted_table <- function(x, weights) {
+  use <- !is.na(x)
+  x <- x[use]
+  weights <- weights[use]
+  weights <- weights/mean(weights, na.rm = TRUE)
+  
   vapply(split(weights, x), sum, 0, na.rm = TRUE)
 }
 

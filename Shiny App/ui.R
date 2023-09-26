@@ -189,8 +189,7 @@ shinyUI(
                                                         socio-demografske spremenljivke, ki nimajo velikega deleža manjkajočih vrednosti in za
                                                         katere so na voljo zanesljivi in posodobljeni podatki o sestavi (deleži kategorij) ciljne populacije 
                                                         (recimo iz uradnih statističnih virov). Primeri takih spremenljivk so: spol, starost, regija in kraj bivanja, izobrazba, zaposlitveni status ipd.
-                                                        Pred uteževanjem morate za te izbrane spremenljivke za vsako kategorijo poiskati ciljne populacijske deleže.
-                                                        Manjkajoče vrednosti (<i>Missing</i>) se obravnavajo samodejno.</small>"))))),
+                                                        Pred uteževanjem morate za te izbrane spremenljivke za vsako kategorijo poiskati ciljne populacijske deleže.</small>"))))),
                              fluidRow(column(12,
                                              checkboxInput("display_tables_preview",
                                                            label = "Prikaži predogled tabel", 
@@ -238,8 +237,15 @@ shinyUI(
                                                 br(),
                                                 p(HTML("<b>Navodila za vnos:</b> S klikom na spodnji gumb prenesite Excel datoteko, v katero nato za vse izbrane spremenljivke
                                                         v stolpec <i>Vnos populacijskih margin (%)</i> vnesite populacijske (ciljne) margine v odstotkih. V stolpcu <i>Populacijski (ciljni) %</i>
-                                                        se vam samodejno preračunajo deleži, ki bodo uporabljeni v uteževanju (glede na morebitne manjkajoče vrednosti in za
+                                                        se samodejno preračunajo deleži, ki bodo uporabljeni v uteževanju (glede na morebitne manjkajoče vrednosti in za
                                                         zagotovilo, da bo vsota vedno 100%). Ko končate z vnosom, Excel datoteko shranite in jo naložite v aplikacijo v zavihku <i>Uteževanje</i>.")),
+                                                p(HTML('<small>Opombe: Manjkajoče vrednosti (<i>Missing</i>) se obravnavajo samodejno, glede na postopek, ki ga uporablja
+                                                       <a href="https://casovnice.cdi.si/uploadi/editor/doc/1492779173DOC1_R7_weights.pdf" target="_blank">Evropska družboslovna raziskava</a>.
+                                                       Morebitna opozorila in priporočila o združevanju kategorij so povzeta iz splošnih pripročil za tovrstno uteževanje 
+                                                       (glej npr. <a href="https://www.surveypractice.org/article/2953-practical-considerations-in-raking-survey-data" target="_blank">Battaglia in drugi (2009)</a>,
+                                                       <a href="https://www150.statcan.gc.ca/n1/en/pub/12-001-x/2010002/article/11376-eng.pdf?st=ZBMtNMXC" target="_blank">Särndal in Lundström (2010)</a>).
+                                                       Odsotnost majhnih kategorij je zaželena saj pospeši konvergenco, manjša možnost nastanka zelo neenakomernih (variabilnih) oz. nestabilnih uteži – 
+                                                       visoko variabilne uteži povečujejo vzorčno varianco in lahko povzročijo bolj nestabilne točkovne ocene.</small>')),
                                                 br(),
                                                 disabled(
                                                   downloadButton("download_excel_input", 
@@ -256,8 +262,15 @@ shinyUI(
                                                 br(),
                                                 p(HTML("<b>Navodila za vnos:</b> V modro označen prostor v spodnjih tabelah vnesite populacijske (ciljne) margine za vsako kategorijo spremenljivke v odstotkih (%).
                                                       V stolpcu <i>Populacijski (ciljni) %</i>
-                                                      se vam samodejno preračunajo deleži, ki bodo uporabljeni v uteževanju (glede na morebitne manjkajoče vrednosti in za
-                                                      zagotovilo, da bo vsota vedno 100%). Ko končate z vnosom, lahko izvedete uteževanje v zavihku <i>Uteževanje</i>."))),
+                                                      se samodejno preračunajo deleži, ki bodo uporabljeni v uteževanju (glede na morebitne manjkajoče vrednosti in za
+                                                      zagotovilo, da bo vsota vedno 100%). Ko končate z vnosom, lahko izvedete uteževanje v zavihku <i>Uteževanje</i>.")),
+                                                p(HTML('<small>Opombe: Manjkajoče vrednosti (<i>Missing</i>) se obravnavajo samodejno, glede na postopek, ki ga uporablja
+                                                       <a href="https://casovnice.cdi.si/uploadi/editor/doc/1492779173DOC1_R7_weights.pdf" target="_blank">Evropska družboslovna raziskava</a>.
+                                                       Morebitna opozorila in priporočila o združevanju kategorij so povzeta iz splošnih pripročil za tovrstno uteževanje 
+                                                       (glej npr. <a href="https://www.surveypractice.org/article/2953-practical-considerations-in-raking-survey-data" target="_blank">Battaglia in drugi (2009)</a>,
+                                                       <a href="https://www150.statcan.gc.ca/n1/en/pub/12-001-x/2010002/article/11376-eng.pdf?st=ZBMtNMXC" target="_blank">Särndal in Lundström (2010)</a>).
+                                                       Odsotnost majhnih kategorij je zaželena saj pospeši konvergenco, manjša možnost nastanka zelo neenakomernih (variabilnih) oz. nestabilnih uteži – 
+                                                       visoko variabilne uteži povečujejo vzorčno varianco in lahko povzročijo bolj nestabilne točkovne ocene.</small>'))),
                                               fluidRow(align = "left",
                                                        actionButton("render_input_tables",
                                                                     label = "Ponastavi vnos v izbrani tabeli",
@@ -327,8 +340,9 @@ shinyUI(
                                                           multiple = TRUE))),
                                 column(6,
                                        checkboxInput("base_weights_selection",
-                                                     label = HTML("Upoštevaj tudi privzete uteži (npr. <i>design weights</i>)")),
+                                                     label = "Upoštevaj tudi privzete uteži"),
                                        conditionalPanel(condition = "input.base_weights_selection == 1",
+                                                        p(HTML("<small>Izbirni vnos, če so na voljo vzorčne uteži, stratifikacijski popravek ali druga informacija o verjetnosti vzorčenja, ki jo je treba upoštevati pred izvedbo uteževanja</small>")),
                                                         pickerInput(inputId = "base_weights_variable",
                                                                     label = HTML("<small>Izberi spremenljivko, ki predstavlja uteži:</small>"),
                                                                     choices = NULL,
@@ -346,7 +360,7 @@ shinyUI(
                                                                      label = HTML("<small>Maksimalna vrednost uteži:</small>"),
                                                                      value = 5, min = 1, step = 0.5)),
                                                  column(8,
-                                                        helpText(HTML(
+                                                        p(HTML(
                                                           "<small>Priporočena možnost, saj je z vidika optimizacije variance optimalna.
                                                             V redkih primerih lahko privede do neveljavnih (skoraj ničelnih) uteži (<0.01).
                                                             Takrat se priporoča povečanje max dovoljene vrednosti uteži ali rezanje uteži na koncu procedure raking.</small>"))))),
@@ -364,11 +378,12 @@ shinyUI(
                                                                      label = HTML("<small>Maksimalna utež:</small>"),
                                                                      value = 5, min = 1, step = 0.5)),
                                                  column(12,
-                                                        helpText(HTML("<small>Zaradi postopka normalizacije lahko vrednosti porezanih uteži rahlo
+                                                        p(HTML("<small>Zaradi postopka normalizacije lahko vrednosti porezanih uteži rahlo
                                                                        presežejo nastavljeno min in max vrednost.</small>"))))),
                               checkboxInput("convergence_input",
                                             label = "Nastavi kriterij za konvergenco"),
                               conditionalPanel(condition = "input.convergence_input == 1",
+                                               p(HTML("<small>Raking algoritem konvergira, ko zadnja ponovitev predstavlja manj kot določeno odstotno izboljšanje glede na prejšnjo iteracijo.</small>")),
                                                column(4,
                                                       numericInput("convergence_criterion",
                                                                    label = NULL,
@@ -480,14 +495,27 @@ shinyUI(
                                                                     maxOptions = 1),
                                                                   multiple = TRUE,
                                                                   width = "60%")),
-                                        htmlOutput("weights_message")
-                                 ),
+                                        htmlOutput("weights_message"),
+                                        br(),
+                                        checkboxInput("adjust_p_values",
+                                                      label = HTML("Popravi p vrednosti zaradi večkratnega preizkušanja domnev")),
+                                        conditionalPanel(condition = "input.adjust_p_values == 1",
+                                                         selectInput("select_p_adjust_method",
+                                                                     label = "Izberi metodo popravljanja p vrednosti:",
+                                                                     choices = list("Holm" = "holm",
+                                                                                    "Hochberg" = "hochberg",
+                                                                                    "Hommel" = "hommel",
+                                                                                    "Bonferroni" = "bonferroni",
+                                                                                    "Benjamini & Hochberg (BH/FDR)" = "BH",
+                                                                                    "Benjamini & Yekutieli (BY)" = "BY"),
+                                                                     selected = 1, multiple = FALSE, width = "50%"))
+                                        ),
                                  column(7,
-                                        helpText(strong("Preverjanje statistične značilnosti vpliva uteži (v izdelavi - uporaba na lastno odgovornost)")),
-                                        helpText(HTML('Za številske spremenljivke se izračuna <a href="https://search.r-project.org/CRAN/refmans/weights/html/wtd.t.test.html" target="_blank">utežen t-test</a> 
-                                        za en vzorec, kjer se preverja ničelna domneva, da je uteženo povprečje enako neuteženemu.
-                                        Za vsako kategorijo spremenljivke v frekvenčnih tabelah se ustvari dihotomna indikatorska spremenljivka (0 1), ter na tej spremenljivki nato izračuna utežen t-test (povprečje = delež), 
-                                        kjer se preverja ničelno domnevo, da je utežen delež enak neuteženemu.')))
+                                        helpText(strong("Preverjanje statistične značilnosti vpliva uteževanja")),
+                                        helpText(HTML('Za številske spremenljivke se preverja ničelna domneva, da je uteženo povprečje enako neuteženemu. Uporabljen je t-test
+                                        za en vzorec, kjer je standardna napaka ocenjena po formuli Taylorjeve linearizacije za razmernostno cenilko.
+                                        Za vsako kategorijo spremenljivke v frekvenčnih tabelah se preverja ničelno domnevo, da je utežen delež enak neuteženemu. Uporabljen je 
+                                        z-test za delež, kjer se standardna napaka prav tako oceni po isti formuli.')))
                                ))),
                       
                       column(12,
@@ -497,7 +525,7 @@ shinyUI(
                                                   column(5,
                                                          pickerInput(
                                                            inputId = "numeric_variables",
-                                                           label = HTML('Izberi številske spremenljivke:<br/><span style="font-weight:normal"><small>(ordinalna, intervalna ali razmernostna merska lestvica)</small></span>'),
+                                                           label = HTML('Izberi številske spremenljivke:<br/><span style="font-weight:normal"><small>(intervalna ali razmernostna merska lestvica)</small></span>'),
                                                            choices = NULL,
                                                            multiple = TRUE,
                                                            options = pickerOptions(actionsBox = TRUE,
@@ -536,7 +564,7 @@ shinyUI(
                                                          div(style = "top: 45px; position:relative;",
                                                              uiOutput("download_factor_analyses_ui"))),
                                                   column(12,
-                                                         br(),
+                                                         htmlOutput("message_factor"),
                                                          shinycssloaders::withSpinner(
                                                            uiOutput("analyses_factor_tables"))))
                              ))))))

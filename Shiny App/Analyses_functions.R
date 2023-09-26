@@ -1,5 +1,45 @@
+# TODO
+# dodaj povzetek za nominalne spremenljivke
+# dodaj survey izračun SE
+
+# function to make dummy variable for every level of a factor variable
+# make_dummies <- function(v) {
+#   s <- sort(unique(v))
+#   d <- outer(v, s, function(v, s) 1L * (v == s))
+#   # colnames(d) <- s
+#   return(d)
+# }
+
+wtd_t_test <- function(x, mu2 = 0, weights_x = NULL, prop = FALSE){
+  n <- sum(!is.na(x))
+  
+  if(is.null(weights_x)) weights_x <- rep(1, length(x))
+  
+  use_x <- !is.na(x)
+  
+  x <- x[use_x]
+  weights_x <- weights_x[use_x]
+  weights_x <- weights_x/mean(weights_x, na.rm = TRUE)
+  
+  mu <- weighted.mean(x = x, w = weights_x, na.rm = TRUE)
+  
+  # SE^2
+  se_2 <- (n/((n - 1) * sum(weights_x)^2)) * sum(weights_x^2 * (x - mu)^2)
+  
+  t <- (mu - mu2)/(sqrt(se_2))
+  
+  if(prop == TRUE){
+    p <- pnorm(q = abs(t), lower.tail = FALSE) * 2
+  } else {
+    df <- n - 1
+    p <- pt(q = abs(t), df = df, lower.tail = FALSE) * 2
+  }
+  
+  c(povp = mu, t = t, p = p, df = df)
+}
+
 # weighted frequency tables for weighting variables
-# TREBA ŠE IZBOLJŠATI PRIKAZ IN Z DATATABLE
+# TODO TREBA ŠE IZBOLJŠATI PRIKAZ IN Z DATATABLE
 display_tables_weighting_vars <- function(orig_data, sheet_list_table, weights){
   one_dimensional_raking_variable <- NULL
   two_dimensional_raking_variables <- NULL
@@ -58,206 +98,364 @@ display_tables_weighting_vars <- function(orig_data, sheet_list_table, weights){
 }
 
 # weighted statistics for numeric variables
-weighted_numeric_statistics <- function(numeric_variables, orig_data, weights){
-  # select only numeric variables first
-  true_numeric <- sapply(orig_data[,numeric_variables, drop = FALSE], FUN = function(x) is.numeric(x)|is.integer(x))
-  non_numeric_vars <- numeric_variables[numeric_variables %in% names(true_numeric[true_numeric == FALSE])]
-  
-  numeric_variables <- numeric_variables[numeric_variables %in% names(true_numeric[true_numeric == TRUE])]
-  
+weighted_numeric_statistics <- function(numeric_variables, orig_data, weights, p_adjust_method = NULL){
   selected_data <- labelled::user_na_to_na(orig_data[ ,numeric_variables, drop = FALSE])
   
-  variable_labels <- sapply(numeric_variables, FUN = function(x){
-    label <- attr(x = orig_data[[x]], which = "label")
-    
+  # select only numeric variables first
+  true_numeric <- vapply(selected_data, FUN = function(x) is.numeric(x) | is.integer(x),
+                         FUN.VALUE = logical(1))
+  
+  non_numeric_vars <- numeric_variables[!true_numeric]
+  numeric_variables <- numeric_variables[true_numeric]
+  selected_data <- selected_data[ ,numeric_variables, drop = FALSE]
+  
+  # exclude variables with variance 0, for which test statistic could not be calculated
+  zero_variance <- vapply(selected_data, FUN = function(x){
+    variance <- var(x, na.rm = TRUE)
+    variance <- ifelse(is.na(variance), 0, variance)
+    0 == variance
+    }, FUN.VALUE = logical(1))
+  
+  non_calculated_vars <- numeric_variables[zero_variance]
+  numeric_variables <- numeric_variables[!zero_variance]
+  selected_data <- selected_data[ ,numeric_variables, drop = FALSE]
+  
+  variable_labels <- vapply(numeric_variables, FUN = function(x){
+    label <- attr(x = orig_data[[x]], which = "label", exact = TRUE)
     if(is.null(label)) "" else label 
-  })
+  }, FUN.VALUE = character(1))
   
   temp_df <- data.frame("Spremenljivka" = numeric_variables)
   
-  if(any(!is.na(variable_labels))){
-    temp_df[["Ime spremenljivke"]] <- variable_labels
+  if(!all(variable_labels == "")){
+    temp_df[["Labela"]] <- variable_labels
   }
   
-  temp_df[["N pred uteževanjem"]] <- colSums(!is.na(selected_data))
-  temp_df[["N po uteževanju"]] <- apply(selected_data, 2, FUN = function(x) sum(weights[!is.na(x)]))
-  temp_df[["Min"]] <- apply(selected_data, 2, min, na.rm = TRUE) # spremeni v sapply
-  temp_df[["Max"]] <- apply(selected_data, 2, max, na.rm = TRUE)
-  temp_df[["Neuteženo povprečje"]] <- colMeans(selected_data, na.rm = TRUE)
-  temp_df[["Uteženo povprečje"]] <- apply(selected_data, 2, weighted.mean, w = weights, na.rm = TRUE)
-  temp_df[["Absolutna razlika"]] <- temp_df$`Uteženo povprečje` - temp_df$`Neuteženo povprečje`
-  temp_df[["Relativna razlika (v %)"]] <- (temp_df$`Absolutna razlika`/temp_df$`Neuteženo povprečje`)*100
-  
-  statistic <- lapply(numeric_variables, function(x){
-    test <- weights::wtd.t.test(x = selected_data[[x]],
-                                y = mean(selected_data[[x]], na.rm = TRUE),
-                                weight = weights)
+  if(length(numeric_variables > 0)) {
+    temp_df[["N"]] <- colSums(!is.na(selected_data))
+    temp_df[["Min"]] <- vapply(selected_data, min, na.rm = TRUE, FUN.VALUE = numeric(1)) 
+    temp_df[["Maks"]] <- vapply(selected_data, max, na.rm = TRUE, FUN.VALUE = numeric(1))
+    temp_df[["Neuteženo povprečje"]] <- colMeans(selected_data, na.rm = TRUE)
+    temp_df[["Uteženo povprečje"]] <- vapply(selected_data, weighted.mean, w = weights, na.rm = TRUE, FUN.VALUE = numeric(1))
+    temp_df[["Absolutna razlika"]] <- temp_df[["Uteženo povprečje"]] - temp_df[["Neuteženo povprečje"]]
+    temp_df[["Relativna razlika (%)"]] <- (temp_df[["Absolutna razlika"]]/temp_df[["Neuteženo povprečje"]])*100
     
-    c("t" = test$coefficients[["t.value"]],
-      "p" = test$coefficients[["p.value"]])
-  })
-  
-  temp_df[["T-vrednost"]] <- abs(sapply(statistic, FUN = function(x) x[["t"]]))
-  temp_df[["P-vrednost"]] <- sapply(statistic, FUN = function(x) x[["p"]])
-  temp_df[["Signifikanca"]] <- weights::starmaker(temp_df[["P-vrednost"]])
-  
-  non_calculated_vars <- temp_df[which(is.na(temp_df[["T-vrednost"]])),"Spremenljivka"] # variables for which test statistic could not be calculated
-  
-  temp_df <- temp_df[which(!is.na(temp_df[["T-vrednost"]])),]
+    # statistic <- lapply(numeric_variables, function(x){
+    #   test <- weights::wtd.t.test(x = selected_data[[x]],
+    #                               y = mean(selected_data[[x]], na.rm = TRUE),
+    #                               weight = weights)
+    # 
+    #   c("t" = test$coefficients[["t.value"]],
+    #     "p" = test$coefficients[["p.value"]])
+    # })
+    
+    statistic <- lapply(numeric_variables, function(x){
+      test <- wtd_t_test(x = selected_data[[x]],
+                         mu2 = mean(selected_data[[x]], na.rm = TRUE),
+                         weights_x = weights)
+
+      c("t" = test[["t"]],
+        "p" = test[["p"]])
+    })
+    
+    temp_df[["t"]] <- sapply(statistic, FUN = function(x) x[["t"]])
+
+    if(is.null(p_adjust_method)){
+      temp_df[["p"]] <- sapply(statistic, FUN = function(x) x[["p"]])
+      temp_df[["Signifikanca"]] <- weights::starmaker(temp_df[["p"]])
+    } else {
+      temp_df[[paste0("pop. p (", p_adjust_method, ")")]] <- p.adjust(p = sapply(statistic, FUN = function(x) x[["p"]]), method = p_adjust_method)
+      temp_df[["Signifikanca"]] <- weights::starmaker(temp_df[[paste0("pop. p (", p_adjust_method, ")")]])
+    }
+  }
   
   return(list(calculated_table = temp_df,
               non_numeric_vars = non_numeric_vars,
               non_calculated_vars = non_calculated_vars))
 }
 
-# function to make dummy variable for every level of a factor variable
-# make_dummies <- function(v) {
-#   s <- sort(unique(v))
-#   d <- outer(v, s, function(v, s) 1L * (v == s))
-#   # colnames(d) <- s
-#   return(d)
-# }
-
 # weighted statistics for categorical variables
-create_w_table <- function(orig_data, variable, weights){
+create_w_table <- function(orig_data, variable, weights, p_adjust_method = NULL){
   temp_var <- droplevels(haven::as_factor(labelled::user_na_to_na(orig_data[[variable]])))
-  temp_df <- as.data.frame(table(temp_var, useNA = "no"))
   
-  if(nrow(temp_df) == 0){
-    temp_df <- data.frame(" " = paste0("Spremenljivka ", variable, " nima veljavnih (nemanjkajočih) vrednosti."),
-                          check.names = FALSE, row.names = "")
-    names(temp_df) <- variable
-    return(temp_df)
+  invalid_var <- NULL
+  constant_var <- NULL
+  temp_df <- NULL
+  warning_numerus <- NULL
+  
+  if(all(is.na(temp_var))){
+    invalid_var <- variable
     
-  } else if(nrow(temp_df) == 1){
-    names(temp_df)[1:2] <- c(variable, "Frekvenca")
-    return(temp_df)
+  } else if(length(unique(na.omit(temp_var))) == 1){
+    constant_var <- variable
     
   } else {
+    temp_df <- as.data.frame(table(temp_var, useNA = "no"))
+    names(temp_df)[1:2] <- c(variable, "N pred uteževanjem")
     temp_df[["N po uteževanju"]] <- weighted_table(temp_var, weights = weights)
-    temp_df[["Delež (%) pred uteževanjem"]] <- (temp_df$Freq/sum(temp_df$Freq))*100
+    temp_df[["Delež (%) pred uteževanjem"]] <- (temp_df[[2]]/sum(temp_df[[2]]))*100
     temp_df[["Delež (%) po uteževanju"]] <- (temp_df[[3]]/sum(temp_df[[3]]))*100
     temp_df[["Razlika v deležih - absolutna"]] <- temp_df[[5]] - temp_df[[4]]
     temp_df[["Razlika v deležih - relativna (%)"]] <- (temp_df[[6]]/temp_df[[4]])*100
     
-    # n <- sum(temp_df[[3]])
-    # 
-    # statistic <- lapply(1:nrow(temp_df), FUN = function(i){
-    #   test <- prop.test(x = temp_df[[3]][i], n = n, p = temp_df[[4]][i]/100, alternative = "two.sided", correct = TRUE)
-    #   
-    #   # square test statistic because R reports chi-square value for proportion test, squaring this gives z value
-    #   list("z" = unname(sqrt(test$statistic)),
-    #        "p" = unname(test$p.value))
-    # })
-    
     # make dummy (0 1) variable for each level of a factor variable
     dummies <- weights::dummify(x = temp_var, show.na = FALSE, keep.na = TRUE)
     
-    # then perform weighted t-test on every dummy variable (mean = proportion)
+    # then perform weighted z-test on every dummy variable (mean = proportion)
+    # statistic <- lapply(seq_len(ncol(dummies)), function(i){
+    #   test <- weights::wtd.t.test(x = dummies[ ,i],
+    #                               y = mean(dummies[ ,i], na.rm = TRUE),
+    #                               weight = weights)
+    #   
+    #   c("t" = test$coefficients[["t.value"]],
+    #     "p" = test$coefficients[["p.value"]])
+    # })
+    # 
     statistic <- lapply(seq_len(ncol(dummies)), function(i){
-      test <- weights::wtd.t.test(x = dummies[ ,i],
-                                  y = mean(dummies[ ,i], na.rm = TRUE),
-                                  weight = weights)
+      test <- wtd_t_test(x = dummies[ ,i],
+                         mu2 = mean(dummies[ ,i], na.rm = TRUE),
+                         weights_x = weights,
+                         prop = TRUE)
       
-      c("t" = test$coefficients[["t.value"]],
-        "p" = test$coefficients[["p.value"]])
+      c("z" = test[["t"]],
+        "p" = test[["p"]])
     })
     
-    temp_df[["T-vrednost"]] <- abs(sapply(statistic, FUN = function(x) x[["t"]]))
-    temp_df[["P-vrednost"]] <- sapply(statistic, FUN = function(x) x[["p"]])
-    temp_df[["Signifikanca"]] <- weights::starmaker(temp_df[["P-vrednost"]])
-      
-    names(temp_df)[1:2] <- c(variable, "N pred uteževanjem")
+    temp_df[["z"]] <- abs(sapply(statistic, FUN = function(x) x[["z"]]))
+    
+    if(is.null(p_adjust_method)){
+      temp_df[["p"]] <- sapply(statistic, FUN = function(x) x[["p"]])
+      temp_df[["Signifikanca"]] <- weights::starmaker(temp_df[["p"]])
+    } else {
+      temp_df[[paste0("pop. p (", p_adjust_method, ")")]] <- p.adjust(p = sapply(statistic, FUN = function(x) x[["p"]]), method = p_adjust_method)
+      temp_df[["Signifikanca"]] <- weights::starmaker(temp_df[[paste0("pop. p (", p_adjust_method, ")")]])
+    }
+    
+    # add warning when n is too small for reliable use of asymptotic test for proportions
+    warning_numerus <- temp_df[[3]] <= 5 | (sum(temp_df[[3]]) - temp_df[[3]]) <= 5
+    temp_df[["Signifikanca"]][warning_numerus] <- paste0(temp_df[["Signifikanca"]][warning_numerus], " !")
     
     # add Total row
     df <- data.frame(v1 = "Skupaj", t(c(colSums(temp_df[-c(1,6:10)]), NA, NA, NA, NA, NA)))
     names(df) <- names(temp_df)
     temp_df <- rbind(temp_df, df)
-    
-    # ? prikazovanje manjkajočih vrednosti
-    # + popravljanje p vrednosti
-    # DODATI ŠE EN ! POD SIGNIFIKACNA ČE JE PREMALO ENOT V CELICI IN DODATI V LEGENDO
-    
-    return(temp_df)
   }
+  
+  return(list(calculated_table = temp_df,
+              invalid_var = invalid_var,
+              constant_var = constant_var,
+              warning_indicator = any(warning_numerus, na.rm = TRUE)))
+}
+
+# function that counts the number of significant variables beased on relative change values
+count_rel_diff <- function(vec, p_vec) {
+  vec <- abs(vec)
+  frek <- c(sum(vec > 20), sum(vec > 10 & vec <= 20), sum(vec >= 5 & vec <= 10), sum(vec < 5))
+  p_frek <- c(sum(vec > 20 & p_vec < 0.05), sum(vec > 10 & vec <= 20 & p_vec < 0.05), sum(vec >= 5 & vec <= 10 & p_vec < 0.05), sum(vec < 5 & p_vec < 0.05))
+  
+  list(sums = frek,
+       cumsums = cumsum(frek),
+       p_sums = p_frek,
+       p_cumsums = cumsum(p_frek))
 }
 
 # functions for tables download
 download_analyses_numeric_table <- function(numeric_table, file){
   wb <- createWorkbook()
   
-  addWorksheet(wb = wb,
-               sheetName = "Opisne_statistike",
-               gridLines = FALSE)
-  
-  writeDataTable(wb = wb,
-                 sheet = 1,
-                 x = numeric_table,
-                 xy = c(1,1),
-                 withFilter = FALSE,
-                 tableStyle = "TableStyleLight9",
-                 bandedRows = TRUE,
-                 bandedCols = TRUE,
-                 headerStyle = createStyle(halign = "center"),
-                 keepNA = FALSE)
-  
-  n_col <- ncol(numeric_table)
-  n_row <- nrow(numeric_table)
-  
-  addStyle(wb = wb,
-           sheet = 1, 
-           style = createStyle(numFmt = "NUMBER"), 
-           rows = 1:(n_row+1), cols = (n_col-8):n_col, stack = TRUE, gridExpand = TRUE)
-  
-  addStyle(wb = wb,
-           sheet = 1, 
-           style = createStyle(numFmt = "0",), 
-           rows = 1:(n_row+1), cols = (n_col-10):(n_col-9), stack = TRUE, gridExpand = TRUE)
-  
-  setColWidths(wb = wb, sheet = 1, cols = 1:n_col, widths = "auto")
-  setColWidths(wb = wb, sheet = 1, cols = 2, widths = 20)
+  if(nrow(numeric_table) > 0){
+    ## summary worksheet
+    addWorksheet(wb = wb,
+                 sheetName = "Povzetek",
+                 gridLines = FALSE)
+    
+    # extract relative changes and p values
+    freq_rel_change <- count_rel_diff(vec = numeric_table[[9]], p_vec = numeric_table[[11]])
+    
+    tbl <- data.frame("Relativne razlike" = c("> 20%", "(10% - 20%]", "[5% - 10%]", "< 5%"),
+                      "f" = freq_rel_change$sums,
+                      "%" = freq_rel_change$sums/sum(freq_rel_change$sums),
+                      "Kumul f" = freq_rel_change$cumsums,
+                      "Kumul %" = freq_rel_change$cumsums/sum(freq_rel_change$sums),
+                      "f*" = freq_rel_change$p_sums,
+                      "% od vseh spremenljivk" = freq_rel_change$p_sums/sum(freq_rel_change$sums),
+                      "% od relativne razlike" = freq_rel_change$p_sums/freq_rel_change$sums,
+                      "Kumul f*" = freq_rel_change$p_cumsums,
+                      "Kumul %" = freq_rel_change$p_cumsums/sum(freq_rel_change$p_sums),
+                      check.names = FALSE)
+    
+    tbl[is.na(tbl)] <- 0
+    
+    writeData(wb = wb,
+              sheet = "Povzetek",
+              x = tbl,
+              borders = "all", startRow = 4, 
+              headerStyle = createStyle(textDecoration = "bold",
+                                        border = c("top", "bottom", "left", "right"),
+                                        halign = "center", valign = "center", wrapText = TRUE))
+    
+    writeData(wb = wb, sheet = "Povzetek",
+              x = "Povzetek sprememb povprečji po uteževanju za številske spremenljivke", startCol = 1, startRow = 1)
+    
+    mergeCells(wb = wb, sheet = "Povzetek", cols = 1:10, rows = 1)
+    
+    writeData(wb = wb, sheet = "Povzetek",
+              x = "Spremenljivke", startCol = 2, startRow = 3)
+    
+    mergeCells(wb = wb, sheet = "Povzetek", cols = 2:5, rows = 3)
+    
+    writeData(wb = wb, sheet = "Povzetek",
+              x = "Od tega statistično značilne spremenljivke (p < 0.05)",
+              startCol = 6, startRow = 3)
+    
+    mergeCells(wb = wb, sheet = "Povzetek", cols = 6:10, rows = 3)
+    
+    writeData(wb = wb, sheet = "Povzetek",
+              x = cbind(c(paste("Št. vseh številskih spremenljivk:", sum(freq_rel_change$sums)),
+                          paste("Št. statistično značilnih številskih spremenljivk (p < 0.05):", sum(freq_rel_change$p_sums)))),
+              startCol = 1, startRow = 10, rowNames = FALSE, colNames = FALSE)
+    
+    addStyle(wb = wb, sheet = "Povzetek",
+             style = createStyle(textDecoration = "bold",
+                                 halign = "center", valign = "center",
+                                 fontSize = 12),
+             rows = 1:2, cols = 1:10,
+             gridExpand = TRUE, stack = TRUE)
+    
+    addStyle(wb = wb, sheet = "Povzetek",
+             style = createStyle(textDecoration = "bold",
+                                 halign = "center", valign = "center",
+                                 border = c("top", "bottom", "left", "right")),
+             rows = 3, cols = 1:10,
+             gridExpand = TRUE, stack = TRUE)
+    
+    addStyle(wb = wb, sheet = "Povzetek",
+             style = createStyle(numFmt = "0%"),
+             rows = 5:8, cols = c(3, 5, 7, 8, 10),
+             gridExpand = TRUE, stack = TRUE)
+    
+    addStyle(wb = wb, sheet = "Povzetek",
+             style = createStyle(halign = "center"),
+             rows = 5:8, cols = 1:10,
+             gridExpand = TRUE, stack = TRUE)
+    
+    setColWidths(wb = wb, sheet = "Povzetek", cols = 1:10,
+                 widths = c(14, 5, 6, 8, 8, 5, 21, 21, 8, 8))
+    
+    setRowHeights(wb = wb, sheet = "Povzetek", rows = 1:4, heights = c(20, 20, 25, 44))
+    
+    ## table worksheet
+    addWorksheet(wb = wb,
+                 sheetName = "Opisne_statistike",
+                 gridLines = FALSE)
+    
+    writeData(wb = wb,
+              sheet = "Opisne_statistike",
+              x = numeric_table,
+              borders = "all",
+              startRow = 1,
+              headerStyle = createStyle(textDecoration = "bold",
+                                        wrapText = TRUE,
+                                        border = c("top", "bottom", "left", "right"),
+                                        halign = "center", valign = "center"))
+    
+    n_col <- ncol(numeric_table)
+    n_row <- nrow(numeric_table)
+    
+    addStyle(wb = wb,
+             sheet = "Opisne_statistike",
+             style = createStyle(halign = "center"),
+             rows = 2:(n_row+2), cols = (n_col-9):n_col,
+             gridExpand = TRUE, stack = TRUE)
+    
+    addStyle(wb = wb,
+             sheet = "Opisne_statistike",
+             style = createStyle(numFmt = "0.00"),
+             rows = 2:(n_row+2), cols = (n_col-6):(n_col-1),
+             gridExpand = TRUE, stack = TRUE)
+    
+    addStyle(wb = wb, sheet = "Opisne_statistike",
+             style = createStyle(numFmt = "0"),
+             rows = 2:(n_row+2), cols = n_col-3,
+             gridExpand = TRUE, stack = TRUE)
+    
+    setColWidths(wb = wb, sheet = "Opisne_statistike", cols = 1:n_col, widths = "auto")
+    setColWidths(wb = wb, sheet = "Opisne_statistike", cols = 2, widths = 20)
+    setRowHeights(wb = wb, sheet = "Opisne_statistike", rows = 1, heights = 35)
+    
+    writeData(wb = wb, sheet = "Opisne_statistike",
+              x = "Signifikanca: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001",
+              xy = c(n_col + 1, 1))
+  }
   
   saveWorkbook(wb = wb, file = file, overwrite = TRUE)
 }
 
-download_analyses_factor_tables <- function(factor_tables, orig_data, variables, file){
+download_analyses_factor_tables <- function(factor_tables, orig_data, file){
   wb <- createWorkbook()
   
-  addWorksheet(wb = wb,
-               sheetName = "Frekvencne_tabele",
-               gridLines = FALSE)
-  
-  # starting row = number of rows of previous table
-  # + 2 (for the header and to add a empty row)
-  # + 1 for the first table
-  start_rows <- c(0, cumsum(3 + sapply(factor_tables, nrow)[-length(factor_tables)])) + 2
-  
-  for(i in seq_along(factor_tables)){
-    writeDataTable(wb = wb,
-                   sheet = 1,
-                   x = factor_tables[[i]],
-                   startRow = start_rows[i],
-                   withFilter = FALSE,
-                   tableStyle = "TableStyleLight9",
-                   bandedRows = TRUE,
-                   bandedCols = TRUE,
-                   headerStyle = createStyle(halign = "center"),
-                   keepNA = FALSE)
+  if(length(factor_tables) > 0){
+    ## summary worksheet
+    
+    
+    
+    ## frequency tables worksheet
+    addWorksheet(wb = wb,
+                 sheetName = "Frekvencne_tabele",
+                 gridLines = FALSE)
+    
+    # starting row = number of rows of previous table
+    # + 2 (for the header and to add a empty row)
+    # + 1 for the first table
+    start_rows <- c(0, cumsum(2 + sapply(factor_tables, nrow)[-length(factor_tables)])) + 3
+    
+    for(i in seq_along(factor_tables)){
+      spr <- colnames(factor_tables[[i]])[1]
+      labela <- attr(x = orig_data[[names(factor_tables)[i]]], which = "label", exact = TRUE)
+      colnames(factor_tables[[i]])[1] <- paste0(spr, ifelse(is.null(labela), "", paste0(" - ", labela)))
+      
+      writeData(wb = wb,
+                sheet = "Frekvencne_tabele",
+                x = factor_tables[[i]],
+                borders = "all",
+                startRow = start_rows[i],
+                headerStyle = createStyle(textDecoration = "bold",
+                                          wrapText = TRUE,
+                                          border = c("top", "bottom", "left", "right"),
+                                          halign = "center", valign = "center"))
+    }
     
     writeData(wb = wb,
-              sheet = 1,
-              x = attr(x = orig_data[[variables[[i]]]], which = "label"),
-              startCol = 1, startRow = start_rows[i] - 1)
+              sheet = "Frekvencne_tabele",
+              x = "Signifikanca: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001", xy = c(1, 1))
+    
+    addStyle(wb = wb, sheet = "Frekvencne_tabele",
+             style = createStyle(fontSize = 9),
+             rows = 1, cols = 1)
+    
+    addStyle(wb = wb,
+             sheet = "Frekvencne_tabele",
+             style = createStyle(numFmt = "0.00"),
+             rows = 1:(start_rows[length(start_rows)]+nrow(factor_tables[[length(factor_tables)]])),
+             cols = 8:9,
+             gridExpand = TRUE, stack = TRUE)
+    
+    addStyle(wb = wb,
+             sheet = "Frekvencne_tabele",
+             style = createStyle(numFmt = "0"),
+             rows = 1:(start_rows[length(start_rows)]+nrow(factor_tables[[length(factor_tables)]])),
+             cols = 2:7,
+             gridExpand = TRUE, stack = TRUE)
+    
+    addStyle(wb = wb,
+             sheet = "Frekvencne_tabele",
+             style = createStyle(halign = "center"),
+             rows = 1:(start_rows[length(start_rows)]+nrow(factor_tables[[length(factor_tables)]])),
+             cols = 2:9,
+             gridExpand = TRUE, stack = TRUE)
+    
+    setColWidths(wb = wb, sheet = "Frekvencne_tabele", cols = 1:10, widths = c(60, rep(15, 6), 10, 10, 12))
   }
-  
-  addStyle(wb = wb,
-           sheet = 1,
-           style = createStyle(numFmt = "NUMBER"),
-           rows = 1:(start_rows[length(start_rows)] + nrow(factor_tables[[length(factor_tables)]])),
-           cols = 3:9,
-           stack = TRUE, gridExpand = TRUE)
-  
-  setColWidths(wb = wb, sheet = 1, cols = 1:ncol(factor_tables[[1]]), widths = "auto")
   
   saveWorkbook(wb = wb, file = file, overwrite = TRUE)
 }

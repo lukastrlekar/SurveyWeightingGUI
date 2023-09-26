@@ -22,8 +22,9 @@ shinyServer(function(input, output, session){
   
   ## Global settings
   options(shiny.sanitize.errors = FALSE,
-          shiny.maxRequestSize = 100 * 1024^2, # Change maximum file size upload to 100 MB
-          htmlwidgets.TOJSON_ARGS = list(na = 'string')) # Display missing values as NA instead of blank space (https://stackoverflow.com/questions/58526047/customizing-how-datatables-displays-missing-values-in-shiny)
+          shiny.maxRequestSize = 100 * 1024^2) # Change maximum file size upload to 100 MB
+  
+          # htmlwidgets.TOJSON_ARGS = list(na = 'string')) # Display missing values as NA instead of blank space (https://stackoverflow.com/questions/58526047/customizing-how-datatables-displays-missing-values-in-shiny)
   
   # Change style of file upload buttons to primary buttons
   runjs("$('#upload_raw_data').parent().removeClass('btn-default').addClass('btn-primary');")
@@ -72,10 +73,10 @@ shinyServer(function(input, output, session){
         "<h4><strong><center>Poststratifikacijsko uteževanje anket</center></strong></h4>
           </br>
           S poststratifikacijskim uteževanjem porazdelitve izbranih, običajno demografskih, spremenljivk z vzorca uskladimo z znano populacijsko (ciljno) porazdelitvijo teh spremenljivk.
-          V aplikaciji je implementirana v praksi najpogosteje uporabljena metoda uteževanja raking (implementirana v programskem jeziku R v paketu anesrake), ki deluje tako, da ponavlja postopek 
+          V aplikaciji je implementirana v praksi najpogosteje uporabljena metoda uteževanja raking (implementirana v R paketu anesrake), ki deluje tako, da ponavlja postopek 
           poststratifikacije iterativno za vsako izbrano spremenljivko posebej, dokler se vzorčni deleži ne približajo populacijskim dovolj natančno.
           </br></br>           
-          Tako uteževanje proizvede uteži, ki zagotovijo, da se uteženi rezultati anket ujemajo s populacijskimi (ciljnimi) porazdelitvami izbranih spremenljivk. Uporaba teh uteži v statističnih analizah
+          Tako uteževanje vrne uteži, ki zagotovijo, da se uteženi rezultati anket ujemajo s populacijskimi (ciljnimi) porazdelitvami izbranih spremenljivk. Uporaba teh uteži v statističnih analizah
           tako lahko pomaga zmanjšati vzorčno pristranskost, ki nastane, ker so določeni segmenti populacije v anketah premalo zastopani (npr. zaradi neodgovora ali nepokritja). Uteži
           takim segmentom iz vzorca pripišejo večjo vrednost, medtem ko preveč zastopanim pripišejo manjši pomen."),
       easyClose = TRUE,
@@ -98,7 +99,7 @@ shinyServer(function(input, output, session){
     
     if(!is.data.frame(df)){
       shinyjs::show("message_wrong_raw_data")
-      return(NULL)
+      return(data.frame())
       
     } else {
       shinyjs::hide("message_wrong_raw_data")
@@ -109,9 +110,12 @@ shinyServer(function(input, output, session){
   output$raw_data_table <- renderDT({
     req(input$upload_raw_data)
     
-    if(!is.null(raw_data())){
+    if(nrow(raw_data()) != 0){
       if(input$raw_data_file_type == "sav"){
-        raw_data <- haven::as_factor(zap_missing(raw_data()), levels = "both")
+        raw_data <- try(haven::as_factor(zap_missing(raw_data()), levels = "both"), silent = TRUE)
+        
+        if(!is.data.frame(raw_data)) raw_data <- haven::as_factor(zap_missing(raw_data()))
+        
       } else {
         raw_data <- raw_data()
       }
@@ -196,7 +200,7 @@ shinyServer(function(input, output, session){
       tabPanel(title = names(displayed_tables)[[i]],
                br(),
                renderTable(displayed_tables[[i]], hover = TRUE, bordered = TRUE, spacing = "xs", align = "c",
-                           caption = attr(x = raw_data()[[names(displayed_tables)[i]]], which = "label"),
+                           caption = attr(x = raw_data()[[names(displayed_tables)[i]]], which = "label", exact = TRUE),
                            caption.placement = "top"))})
     
     do.call(tabsetPanel, displayed_tabs)
@@ -344,10 +348,10 @@ shinyServer(function(input, output, session){
         row_highlight_small <- row_highlight_small[row_highlight_small %in% n_miss == FALSE]
         
         col_highlight_sample <- n_col - 3
-        row_highlight_critical_sample <- which(df[,n_col-3] >= 1 & df[,n_col-3] <= 4)
+        row_highlight_critical_sample <- which(df[,n_col-3] >= 1 & df[,n_col-3] <= 10)
         row_highlight_critical_sample <- row_highlight_critical_sample[row_highlight_critical_sample %in% n_miss == FALSE]
         
-        row_highlight_small_sample <- which(df[,n_col-3] >= 5 & df[,n_col-3] <= 9)
+        row_highlight_small_sample <- which(df[,n_col-3] >= 11 & df[,n_col-3] <= 30)
         row_highlight_small_sample <- row_highlight_small_sample[row_highlight_small_sample %in% n_miss == FALSE]
         
         df[n,n_col-1] <- sum(df[-n,n_col-1])
@@ -444,7 +448,7 @@ shinyServer(function(input, output, session){
         output[[paste0("input_sum_message_", clean_names()[[i]])]] <- renderText({
           s <- df[n,n_col]
           if((s != 1 && s != 100) && s != 0){
-            paste('<p style="background-color:#FFFF65;">&nbspVsota vnešenih margin ni 100%</p>')
+            paste('<p style="background-color:#FFFF65;">&nbspVsota vnesenih margin ni 100%</p>')
           }
         })
         
@@ -454,8 +458,10 @@ shinyServer(function(input, output, session){
           }
         })
         
+        
+        ### Warning: Error in if: missing value where TRUE/FALSE needed
         output[[paste0("input_error_messages1_", clean_names()[[i]])]] <- renderText({
-          if(length(row_highlight_error) != 0 && any((df[-c(n_miss,n),n_col-1] == 0 & df[-c(n_miss,n),n_col-3] > 0))){
+          if(isTRUE(length(row_highlight_error) != 0 && any((df[-c(n_miss,n),n_col-1] == 0 & df[-c(n_miss,n),n_col-3] > 0)))){
             paste('<p style="background-color:#FF4B4B;">&nbspNičelna populacijska in neničelna vzorčna margina</p>')
           }
         })
@@ -478,21 +484,21 @@ shinyServer(function(input, output, session){
         
         output[[paste0("input_warning_messages_", clean_names()[[i]])]] <- renderText({
           if(length(row_highlight_critical) != 0 && length(row_highlight_critical_sample) != 0){
-            paste('<p style="background-color:#FFC000;">&nbspKritično majhne celice (n < 5) in populacijske margine (< 1%)</p>')
+            paste('<p style="background-color:#FFC000;">&nbspKritično majhne kategorije (n < 11) in populacijske margine (< 1%)</p>')
           } else if(length(row_highlight_critical) != 0 && length(row_highlight_critical_sample) == 0){
             paste('<p style="background-color:#FFC000;">&nbspKritično majhne populacijske margine (< 1%)</p>')
           } else if(length(row_highlight_critical) == 0 && length(row_highlight_critical_sample) != 0){
-            paste('<p style="background-color:#FFC000;">&nbspKritično majhne celice (n < 5)</p>')
+            paste('<p style="background-color:#FFC000;">&nbspKritično majhne kategorije (n < 11)</p>')
           }
         })
         
         output[[paste0("input_recommend_messages_", clean_names()[[i]])]] <- renderText({
           if(length(row_highlight_small) != 0 && length(row_highlight_small_sample) != 0){
-            paste('<p style="background-color:#FFECAF;">&nbspMajhne celice (n < 10) in populacijske margine (< 5%)</p>')
+            paste('<p style="background-color:#FFECAF;">&nbspMajhne kategorije (n < 31) in populacijske margine (< 5%)</p>')
           } else if(length(row_highlight_small) != 0 && length(row_highlight_small_sample) == 0){
             paste('<p style="background-color:#FFECAF;">&nbspMajhne populacijske margine (< 5%)</p>')
           } else if(length(row_highlight_small) == 0 && length(row_highlight_small_sample) != 0){
-            paste('<p style="background-color:#FFECAF;">&nbspMajhne celice (n < 10)</p>')
+            paste('<p style="background-color:#FFECAF;">&nbspMajhne kategorije (n < 31)</p>')
           }
         })
       }
@@ -560,6 +566,7 @@ shinyServer(function(input, output, session){
                   sheet_list = sheet_list))
       
     } else if(!is.null(input$upload_margins_data) || isTRUE(input$radio_which_weighting_vars == "saved_inputed")){
+      req(input$upload_margins_data)
       
       ext <- tools::file_ext(input$upload_margins_data$name)
       
@@ -699,7 +706,10 @@ shinyServer(function(input, output, session){
         weightvec <- raw_data()[[input$base_weights_variable]]
       }
       
-    } else {weightvec <- NULL}
+    } else {
+      shinyjs::hide("message_no_base_weights_selected")
+      weightvec <- NULL
+      }
     
     perform_weighting(orig_data = raw_data(),
                       margins_data = margins_data(),
@@ -909,8 +919,12 @@ shinyServer(function(input, output, session){
       if(!is.null(input$analyses_weight_variable) && input$select_which_weights == "included_weights"){
         weights <- labelled::user_na_to_na(raw_data()[[input$analyses_weight_variable]])
         
-        if(sum(!is.na(weights)) != nrow(raw_data())){
-          validate("Izbrana spremenljivka uteži ne vsebuje enakega števila enot kot naloženi podatki. Izračun uteženih statistik ni mogoč.")
+        # if(sum(!is.na(weights)) != nrow(raw_data())){
+        #   validate("Izbrana spremenljivka uteži ne vsebuje enakega števila enot kot naloženi podatki. Izračun uteženih statistik ni mogoč.")
+        # }
+        
+        if(anyNA(weights)){
+          validate("Izbrana spremenljivka uteži vsebuje manjkajoče vrednosti. Izračun uteženih statistik ni mogoč.")
         }
         
         if(!is.numeric(weights)){
@@ -918,7 +932,7 @@ shinyServer(function(input, output, session){
         }
         
         if(!isTRUE(all.equal(mean(weights, na.rm = TRUE), 1))){
-          validate("Povprečje uteži ni enako 1 (uteži niso normalizirane). Potrebna je pazljivost pri analizi in intepretaciji rezultatov. Ali izbrana spremenljivka predstavlja poststratifikacijske uteži?")
+          validate("Povprečje uteži ni enako 1 (uteži niso normalizirane). Za analize bodo uteži reskalirane, da bo povprečje enako 1. Ali izbrana spremenljivka predstavlja poststratifikacijske uteži?")
         }
         
       } else if(is.null(input$analyses_weight_variable) && input$select_which_weights == "included_weights"){
@@ -934,9 +948,16 @@ shinyServer(function(input, output, session){
   weighted_numeric_table <- eventReactive(input$run_numeric_variables, {
     req(input$numeric_variables)
     
+    if(input$adjust_p_values == 0){
+      p_adjust_method <- NULL
+    } else {
+      p_adjust_method <- input$select_p_adjust_method
+    }
+    
     weighted_numeric_statistics(numeric_variables = input$numeric_variables,
                                 orig_data = raw_data(),
-                                weights = weights_vector())
+                                weights = weights_vector(),
+                                p_adjust_method = p_adjust_method)
   })
   
   # Display message about removal of non-numeric variables when calculating descriptive statistics
@@ -947,13 +968,13 @@ shinyServer(function(input, output, session){
       return(NULL)
     } else if((length(weighted_numeric_table()$non_numeric_vars) != 0) && (length(weighted_numeric_table()$non_calculated_vars) == 0)){
       paste("<small>Spremenljivke", paste(weighted_numeric_table()$non_numeric_vars, collapse = ", "),
-            "so bile pri izračunih izpuščene, ker vsebujejo neštevilske kategorije.</small> <hr/>")
+            "so bile pri izračunih izpuščene, ker vsebujejo neštevilske vrednosti.</small> <hr/>")
     } else if((length(weighted_numeric_table()$non_calculated_vars) != 0) && (length(weighted_numeric_table()$non_numeric_vars) == 0)){
       paste("<small>Spremenljivke", paste(weighted_numeric_table()$non_calculated_vars, collapse = ", "),
             "so bile pri izračunih izpuščene, ker imajo ničelno varianco in izračun testne statistike ni bil mogoč.</small> <hr/>")
     } else {
       paste("<small>Spremenljivke", paste(weighted_numeric_table()$non_numeric_vars, collapse = ", "),
-            "so bile pri izračunih izpuščene, ker vsebujejo neštevilske kategorije. <br/><br/>
+            "so bile pri izračunih izpuščene, ker vsebujejo neštevilske vrednosti.<br/><br/>
             Spremenljivke", paste(weighted_numeric_table()$non_calculated_vars, collapse = ", "),
             "so bile pri izračunih izpuščene, ker imajo ničelno varianco in izračun testne statistike ni bil mogoč.</small> <hr/>")
     }
@@ -971,13 +992,12 @@ shinyServer(function(input, output, session){
                   options = list(dom = "t",
                                  paging = FALSE,
                                  columnDefs = list(list(targets = 0:(n_col-1),
-                                                        className = "dt-center")))) %>% 
-          formatRound(columns = (n_col-10):(n_col-9), digits = 0) %>% 
-          formatRound(columns = (n_col-8):(n_col-1), digits = 2),
+                                                        className = "dt-center")))) %>%
+          formatRound(columns = (n_col-6):(n_col-1), digits = 2) %>% 
+          formatRound(columns = c((n_col-8):(n_col-7), (n_col-3)), digits = 0),
         br())
     }
   })
-  
   
   ### Categorical (factor) variables
   weighted_factor_tables <- eventReactive(input$run_factor_variables, {
@@ -985,24 +1005,72 @@ shinyServer(function(input, output, session){
     
     n_tabs <- length(input$factor_variables)
     
+    if(input$adjust_p_values == 0){
+      p_adjust_method <- NULL
+    } else {
+      p_adjust_method <- input$select_p_adjust_method
+    }
+    
     tables <- lapply(seq_len(n_tabs), function(i){
       create_w_table(orig_data = raw_data(),
                      variable = input$factor_variables[[i]],
-                     weights = weights_vector())
+                     weights = weights_vector(),
+                     p_adjust_method = p_adjust_method)
     })
     
     names(tables) <- input$factor_variables
     return(tables)
   })
   
+  # Display message about removal of constant factor variables
+  output$message_factor <- renderText({
+    req(input$run_factor_variables)
+    
+    invalid_vars <- unlist(lapply(weighted_factor_tables(), "[[", "invalid_var"))
+    constant_vars <- unlist(lapply(weighted_factor_tables(), "[[", "constant_var"))
+    
+    if((length(invalid_vars) == 0) && (length(constant_vars) == 0)){
+      return(NULL)
+    } else if((length(invalid_vars) != 0) && (length(constant_vars) == 0)){
+      paste("<small>Spremenljivke", paste(invalid_vars, collapse = ", "),
+            "so bile pri izračunih izpuščene, ker nimajo veljavnih (nemanjkajočih) vrednosti.</small> <hr/>")
+    } else if((length(constant_vars) != 0) && (length(invalid_vars) == 0)){
+      paste("<small>Spremenljivke", paste(constant_vars, collapse = ", "),
+            "so bile pri izračunih izpuščene, ker so konstante (imajo le 1 veljavno kategorijo).</small> <hr/>")
+    } else {
+      paste("<small>Spremenljivke", paste(invalid_vars, collapse = ", "),
+            "so bile pri izračunih izpuščene, ker nimajo veljavnih (nemanjkajočih) vrednosti.<br/><br/>
+            Spremenljivke", paste(constant_vars, collapse = ", "),
+            "so bile pri izračunih izpuščene, ker so konstante (imajo le 1 veljavno kategorijo).</small> <hr/>")
+    }
+  })
+  
   output$analyses_factor_tables <- renderUI({
+    index <- vapply(weighted_factor_tables(), function(x) is.data.frame(x[["calculated_table"]]), FUN.VALUE = logical(1))
+    weighted_factor_tables <- weighted_factor_tables()[index]
+    
+    warning_indicator <- any(unlist(lapply(weighted_factor_tables, "[[", "warning_indicator")), na.rm = TRUE)
+    
     tagList(
       p(HTML("<small>Signifikanca: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001</small>")),
-      lapply(seq_len(length(weighted_factor_tables())), function(i){
-        renderTable(weighted_factor_tables()[[i]],
-                    hover = TRUE, bordered = TRUE, spacing = "xs", width = "100%", align = "c", na = "",
-                    caption = attr(x = raw_data()[[names(weighted_factor_tables())[i]]], which = "label"),
-                    caption.placement = "top")
+      if(warning_indicator) p(HTML("<small>! Število enot v celici je premajhno za zanesljivo oceno p vrednosti.</small>")),
+      
+      lapply(seq_len(length(weighted_factor_tables)), function(i){
+        tbl <- weighted_factor_tables[[i]][["calculated_table"]]
+        n_col <- ncol(tbl)
+        
+        tagList(
+          datatable(tbl,
+                    rownames= FALSE,
+                    class = "compact cell-border hover bordered-header",
+                    caption = attr(x = raw_data()[[names(weighted_factor_tables)[i]]], which = "label", exact = TRUE),
+                    options = list(dom = "t",
+                                   paging = FALSE,
+                                   columnDefs = list(list(targets = 0:(n_col-1),
+                                                          className = "dt-center")))) %>%
+            formatRound(columns = (n_col-8):(n_col-3), digits = 0) %>% 
+            formatRound(columns = (n_col-2):(n_col-1), digits = 2),
+          br())
       })
     )
   })
@@ -1027,7 +1095,6 @@ shinyServer(function(input, output, session){
                                       file = file)
     })
   
-  
   ### Download analyses factor tables
   output$download_factor_analyses_ui <- renderUI({
     if(!is.null(weighted_factor_tables())){
@@ -1048,10 +1115,13 @@ shinyServer(function(input, output, session){
                             footer = NULL))
       on.exit(removeModal())
       
-      download_analyses_factor_tables(factor_tables = weighted_factor_tables(),
-                                      orig_data = raw_data(),
-                                      variables = input$factor_variables,
-                                      file = file)
+      index <- vapply(weighted_factor_tables(), function(x) is.data.frame(x[["calculated_table"]]), FUN.VALUE = logical(1))
+      weighted_factor_tables <- weighted_factor_tables()[index]
+      
+      download_analyses_factor_tables(
+        factor_tables = lapply(weighted_factor_tables, "[[", "calculated_table"),
+        orig_data = raw_data(),
+        file = file)
     })
   
 })

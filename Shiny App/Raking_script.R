@@ -2,10 +2,11 @@
 ## Weights are trimmed at user-specified values, and then readjusted so that the
 ## average of weights again equals 1.
 trim_weights <- function(weights, lower = -Inf, upper = Inf){
-  new_weights <- ifelse(weights <= lower, lower,
-                        ifelse(weights >= upper, upper, weights))
-  new_weights <- new_weights/mean(new_weights, na.rm = TRUE)
-  return(new_weights)
+  weights[weights < lower] <- lower
+  weights[weights > upper] <- upper
+  
+  weights <- weights/mean(weights)
+  return(weights)
 }
 
 # TODO
@@ -70,7 +71,6 @@ perform_weighting <- function(orig_data = NULL,
   #     x
   #   }
   # }))
-  
 
   popul_margins <- vector(mode = "list", length = length(sheet_names))
   names(popul_margins) <- sheet_names

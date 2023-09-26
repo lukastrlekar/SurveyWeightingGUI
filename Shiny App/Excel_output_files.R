@@ -81,7 +81,7 @@ one_dim_excel <- function(orig_data, one_dim_raking_var, wb, drop_zero, drop_zer
       }
       
       writeFormula(wb = wb, sheet = one_dim_raking_var,
-                   x = paste0('IF(AND(B',j,'>=1,B',j,'<=4),"vzorec1-4",IF(AND(B',j,'>=5,B',j,'<=9),"vzorec5-9","ok"))&"_"&IF(AND(D',j,'=0,B',j,'>0,$E$',n_row,'<>0),"pop0",IF(AND(B',j,'=0,D',j,'>0,$E$',n_row,'<>0),"vzorec0",IF(AND(D',j,'>0,D',j,'<1),"vzorec1-4",IF(AND(D',j,'>=1,D',j,'<5),"vzorec5-9","ok"))))'),
+                   x = paste0('IF(AND(B',j,'>=1,B',j,'<=10),"vzorec1-4",IF(AND(B',j,'>=11,B',j,'<=30),"vzorec5-9","ok"))&"_"&IF(AND(D',j,'=0,B',j,'>0,$E$',n_row,'<>0),"pop0",IF(AND(B',j,'=0,D',j,'>0,$E$',n_row,'<>0),"vzorec0",IF(AND(D',j,'>0,D',j,'<1),"vzorec1-4",IF(AND(D',j,'>=1,D',j,'<5),"vzorec5-9","ok"))))'),
                    startCol = n_col+1, startRow = j)
       
       not_miss_rows <- c(not_miss_rows, j)
@@ -114,12 +114,12 @@ one_dim_excel <- function(orig_data, one_dim_raking_var, wb, drop_zero, drop_zer
   
   conditionalFormatting(wb = wb, sheet = one_dim_raking_var,
                         cols = 2, rows = not_miss_rows,
-                        type = "between", rule = c(1,4),
+                        type = "between", rule = c(1,10),
                         style = createStyle(bgFill = "#FFC000"))
   
   conditionalFormatting(wb = wb, sheet = one_dim_raking_var,
                         cols = 2, rows = not_miss_rows,
-                        type = "between", rule = c(5,9),
+                        type = "between", rule = c(11,30),
                         style = createStyle(bgFill = "#FFECAF"))
   
   conditionalFormatting(wb = wb, sheet = one_dim_raking_var,
@@ -172,17 +172,17 @@ one_dim_excel <- function(orig_data, one_dim_raking_var, wb, drop_zero, drop_zer
   
   # Diagnostic text - recommendations
   writeFormula(wb = wb, sheet = one_dim_raking_var,
-               x = 'IF(OR(H8<>"",H9<>""),"Priporočila (združevanje celic):","")',
+               x = 'IF(OR(H8<>"",H9<>""),"Priporočila (združevanje kategorij):","")',
                xy = c(n_col+3, 7))
   
   writeFormula(wb = wb,
                sheet = one_dim_raking_var,
-               x = paste0('IF(AND(COUNTIF(F2:F',n_row-1,',"vzorec1-4_*"),COUNTIF(F2:F',n_row-1,',"*_vzorec1-4")),"Kritično majhne celice (n < 5) in populacijske margine (< 1%)",IF(COUNTIF(F2:F',n_row-1,',"*_vzorec1-4"),"Kritično majhne populacijske margine (< 1%)",IF(COUNTIF(F2:F',n_row-1,',"vzorec1-4_*"),"Kritično majhne celice (n < 5)","")))'),
+               x = paste0('IF(AND(COUNTIF(F2:F',n_row-1,',"vzorec1-4_*"),COUNTIF(F2:F',n_row-1,',"*_vzorec1-4")),"Kritično majhne kategorije (n < 11) in populacijske margine (< 1%)",IF(COUNTIF(F2:F',n_row-1,',"*_vzorec1-4"),"Kritično majhne populacijske margine (< 1%)",IF(COUNTIF(F2:F',n_row-1,',"vzorec1-4_*"),"Kritično majhne celice (n < 11)","")))'),
                startCol = n_col+3, startRow = 8)
   
   writeFormula(wb = wb,
                sheet = one_dim_raking_var,
-               x = paste0('IF(AND(COUNTIF(F2:F',n_row-1,',"vzorec5-9_*"),COUNTIF(F2:F',n_row-1,',"*_vzorec5-9")),"Majhne celice (n < 10) in populacijske margine (< 5%)",IF(COUNTIF(F2:F',n_row-1,',"*_vzorec5-9"),"Majhne populacijske margine (< 5%)",IF(COUNTIF(F2:F',n_row-1,',"vzorec5-9_*"),"Majhne celice (n < 10)","")))'),
+               x = paste0('IF(AND(COUNTIF(F2:F',n_row-1,',"vzorec5-9_*"),COUNTIF(F2:F',n_row-1,',"*_vzorec5-9")),"Majhne kategorije (n < 31) in populacijske margine (< 5%)",IF(COUNTIF(F2:F',n_row-1,',"*_vzorec5-9"),"Majhne populacijske margine (< 5%)",IF(COUNTIF(F2:F',n_row-1,',"vzorec5-9_*"),"Majhne kategorije (n < 31)","")))'),
                startCol = n_col+3, startRow = 9)
   
   conditionalFormatting(wb = wb, sheet = one_dim_raking_var,
@@ -332,7 +332,7 @@ two_dim_excel <- function(orig_data, two_dim_raking_vars, wb, drop_zero, drop_ze
       
       writeFormula(wb = wb, 
                    sheet = two_dim_names,
-                   x = paste0('IF(AND(C',k,'>=1,C',k,'<=4),"vzorec1-4",IF(AND(C',k,'>=5,C',k,'<=9),"vzorec5-9","ok"))&"_"&IF(AND(E',k,'=0,C',k,'>0,$F$',n_row,'<>0),"pop0",IF(AND(C',k,'=0,E',k,'>0,$F$',n_row,'<>0),"vzorec0",IF(AND(E',k,'>0,E',k,'<1),"vzorec1-4",IF(AND(E',k,'>=1,E',k,'<5),"vzorec5-9","ok"))))'),
+                   x = paste0('IF(AND(C',k,'>=1,C',k,'<=10),"vzorec1-4",IF(AND(C',k,'>=11,C',k,'<=30),"vzorec5-9","ok"))&"_"&IF(AND(E',k,'=0,C',k,'>0,$F$',n_row,'<>0),"pop0",IF(AND(C',k,'=0,E',k,'>0,$F$',n_row,'<>0),"vzorec0",IF(AND(E',k,'>0,E',k,'<1),"vzorec1-4",IF(AND(E',k,'>=1,E',k,'<5),"vzorec5-9","ok"))))'),
                    startCol = n_col+1, startRow = k)
     }
   }
@@ -374,13 +374,13 @@ two_dim_excel <- function(orig_data, two_dim_raking_vars, wb, drop_zero, drop_ze
   conditionalFormatting(wb = wb, sheet = two_dim_names,
                         cols = 3, rows = not_miss_rows,
                         type = "expression",
-                        rule = paste0('AND(C',not_miss_rows[1],'>0,C',not_miss_rows[1],'<=4,G',not_miss_rows[1],'<>"")'),
+                        rule = paste0('AND(C',not_miss_rows[1],'>0,C',not_miss_rows[1],'<=10,G',not_miss_rows[1],'<>"")'),
                         style = createStyle(bgFill = "#FFC000"))
   
   conditionalFormatting(wb = wb, sheet = two_dim_names,
                         cols = 3, rows = not_miss_rows,
                         type = "expression",
-                        rule = paste0('AND(C',not_miss_rows[1],'>=5,C',not_miss_rows[1],'<=9,G',not_miss_rows[1],'<>"")'),
+                        rule = paste0('AND(C',not_miss_rows[1],'>=11,C',not_miss_rows[1],'<=30,G',not_miss_rows[1],'<>"")'),
                         style = createStyle(bgFill = "#FFECAF"))
   
   conditionalFormatting(wb = wb, sheet = two_dim_names,
@@ -437,17 +437,17 @@ two_dim_excel <- function(orig_data, two_dim_raking_vars, wb, drop_zero, drop_ze
   # Diagnostic text - recommendations
   writeFormula(wb = wb,
                sheet = two_dim_names,
-               x = 'IF(OR(I8<>"",I9<>""),"Priporočila (združevanje celic):","")',
+               x = 'IF(OR(I8<>"",I9<>""),"Priporočila (združevanje kategorij):","")',
                xy = c(n_col+3, 7))
   
   writeFormula(wb = wb,
                sheet = two_dim_names,
-               x = paste0('IF(AND(COUNTIF(G2:G',n_row-1,',"vzorec1-4_*"),COUNTIF(G2:G',n_row-1,',"*_vzorec1-4")),"Kritično majhne celice (n < 5) in populacijske margine (< 1%)",IF(COUNTIF(G2:G',n_row-1,',"*_vzorec1-4"),"Kritično majhne populacijske margine (< 1%)",IF(COUNTIF(G2:G',n_row-1,',"vzorec1-4_*"),"Kritično majhne celice (n < 5)","")))'),
+               x = paste0('IF(AND(COUNTIF(G2:G',n_row-1,',"vzorec1-4_*"),COUNTIF(G2:G',n_row-1,',"*_vzorec1-4")),"Kritično majhne kategorije (n < 11) in populacijske margine (< 1%)",IF(COUNTIF(G2:G',n_row-1,',"*_vzorec1-4"),"Kritično majhne populacijske margine (< 1%)",IF(COUNTIF(G2:G',n_row-1,',"vzorec1-4_*"),"Kritično majhne kategorije (n < 11)","")))'),
                startCol = n_col+3, startRow = 8)
   
   writeFormula(wb = wb,
                sheet = two_dim_names,
-               x = paste0('IF(AND(COUNTIF(G2:G',n_row-1,',"vzorec5-9_*"),COUNTIF(G2:G',n_row-1,',"*_vzorec5-9")),"Majhne celice (n < 10) in populacijske margine (< 5%)",IF(COUNTIF(G2:G',n_row-1,',"*_vzorec5-9"),"Majhne populacijske margine (< 5%)",IF(COUNTIF(G2:G',n_row-1,',"vzorec5-9_*"),"Majhne celice (n < 10)","")))'),
+               x = paste0('IF(AND(COUNTIF(G2:G',n_row-1,',"vzorec5-9_*"),COUNTIF(G2:G',n_row-1,',"*_vzorec5-9")),"Majhne celice (n < 31) in populacijske margine (< 5%)",IF(COUNTIF(G2:G',n_row-1,',"*_vzorec5-9"),"Majhne populacijske margine (< 5%)",IF(COUNTIF(G2:G',n_row-1,',"vzorec5-9_*"),"Majhne celice (n < 31)","")))'),
                startCol = n_col+3, startRow = 9)
   
   conditionalFormatting(wb = wb, sheet = two_dim_names,
