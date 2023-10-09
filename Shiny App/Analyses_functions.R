@@ -1,6 +1,5 @@
 # TODO
-# dodaj povzetek za nominalne spremenljivke
-# dodaj survey izračun SE
+# preveri povzetek za nominalne spremenljivke
 
 # function to make dummy variable for every level of a factor variable
 # make_dummies <- function(v) {
@@ -10,22 +9,30 @@
 #   return(d)
 # }
 
-wtd_t_test <- function(x, mu2 = 0, weights_x = NULL, prop = FALSE){
+wtd_t_test <- function(x, mu2 = 0, weights_x = NULL, prop = FALSE, se_calculation = c("taylor_se", "survey_se"), survey_design){
+  se_calculation <- match.arg(se_calculation)
+  
   n <- sum(!is.na(x))
   
   if(is.null(weights_x)) weights_x <- rep(1, length(x))
   
-  use_x <- !is.na(x)
-  
-  x <- x[use_x]
-  weights_x <- weights_x[use_x]
-  weights_x <- weights_x/mean(weights_x, na.rm = TRUE)
+  # weights_x <- weights_x/mean(weights_x, na.rm = TRUE)
   
   mu <- weighted.mean(x = x, w = weights_x, na.rm = TRUE)
   
   # SE^2
-  se_2 <- (n/((n - 1) * sum(weights_x)^2)) * sum(weights_x^2 * (x - mu)^2)
+  if(se_calculation == "taylor_se"){
+    use_x <- !is.na(x)
+    x <- x[use_x]
+    weights_x <- weights_x[use_x]
+    
+    se_2 <- (n/((n - 1) * sum(weights_x)^2)) * sum(weights_x^2 * (x - mu)^2)
+  }
   
+  if(se_calculation == "survey_se"){
+    se_2 <- SE(svymean(x = x, design = survey_design, na.rm = TRUE))^2
+  }
+
   t <- (mu - mu2)/(sqrt(se_2))
   
   if(prop == TRUE){
@@ -40,15 +47,12 @@ wtd_t_test <- function(x, mu2 = 0, weights_x = NULL, prop = FALSE){
 
 # weighted frequency tables for weighting variables
 # TODO TREBA ŠE IZBOLJŠATI PRIKAZ IN Z DATATABLE
+# še prevec če je določen
 display_tables_weighting_vars <- function(orig_data, sheet_list_table, weights){
   one_dimensional_raking_variable <- NULL
   two_dimensional_raking_variables <- NULL
   
   df <- sheet_list_table
-  # df <- df[,-((ncol(df)-2):ncol(df)), drop = FALSE]
-  # n_col <- ncol(df)
-  #df <- na.omit(df) # tole popraviti
-  # df <- df[-nrow(df),]
   
   var_names1 <- c("Frekvenca", "Vzorcni %", "Populacijski (ciljni) %")
   var_names2 <- gsub(pattern = " ", replacement = ".", x = var_names1, fixed = TRUE)
@@ -93,12 +97,12 @@ display_tables_weighting_vars <- function(orig_data, sheet_list_table, weights){
   temp_df <- data.frame(v1 = "Skupaj", t(colSums(df[-1])))
   names(temp_df) <- names(df)
   df <- rbind(df, temp_df)
-  
+
   return(df)
 }
 
 # weighted statistics for numeric variables
-weighted_numeric_statistics <- function(numeric_variables, orig_data, weights, p_adjust_method = NULL){
+weighted_numeric_statistics <- function(numeric_variables, orig_data, weights, p_adjust_method = NULL, ...){
   selected_data <- labelled::user_na_to_na(orig_data[ ,numeric_variables, drop = FALSE])
   
   # select only numeric variables first
@@ -152,7 +156,7 @@ weighted_numeric_statistics <- function(numeric_variables, orig_data, weights, p
     statistic <- lapply(numeric_variables, function(x){
       test <- wtd_t_test(x = selected_data[[x]],
                          mu2 = mean(selected_data[[x]], na.rm = TRUE),
-                         weights_x = weights)
+                         weights_x = weights, ...)
 
       c("t" = test[["t"]],
         "p" = test[["p"]])
@@ -175,7 +179,7 @@ weighted_numeric_statistics <- function(numeric_variables, orig_data, weights, p
 }
 
 # weighted statistics for categorical variables
-create_w_table <- function(orig_data, variable, weights, p_adjust_method = NULL){
+create_w_table <- function(orig_data, variable, weights, p_adjust_method = NULL, ...){
   temp_var <- droplevels(haven::as_factor(labelled::user_na_to_na(orig_data[[variable]])))
   
   invalid_var <- NULL
@@ -215,7 +219,7 @@ create_w_table <- function(orig_data, variable, weights, p_adjust_method = NULL)
       test <- wtd_t_test(x = dummies[ ,i],
                          mu2 = mean(dummies[ ,i], na.rm = TRUE),
                          weights_x = weights,
-                         prop = TRUE)
+                         prop = TRUE, ...)
       # odstrani to
       c("z" = test[["t"]],
         "p" = test[["p"]])

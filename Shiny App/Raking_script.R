@@ -11,6 +11,7 @@ trim_weights <- function(weights, lower = -Inf, upper = Inf){
 
 # TODO
 # design effect preveri izračun in navedi vir
+# za survey rakign če je error da se izpiše kaj informativnega
 
 # Kish (1992) estimator for design effect
 design_effect <- function(weights) {
@@ -19,13 +20,33 @@ design_effect <- function(weights) {
   return(deff)
 }
 
+# generic summary for raking with survey package
+summary.surveyrake <- function(object, ...) {
+  namer <- c("convergence", "base.weights", "raking.variables")
+  bwstat <- "Using Base Weights Provided"
+  if(sum(object$prevec==1) == length(object$prevec)){
+    bwstat <- "No Base Weights Were Used"
+  }
+  
+  out <- list(paste("Convergence was achieved"),
+              bwstat,
+              object$varsused)
+  names(out) <- namer
+  out
+}
+
 # prepare data for raking and perform raking
 perform_weighting <- function(orig_data = NULL,
                               margins_data,
                               all_raking_variables = NULL,
                               case_id = NULL, 
                               lower,
-                              upper, ...){
+                              upper,
+                              package = c("anesrake", "survey"),
+                              weightvec,
+                              epsilon, ...){
+  
+  package <- match.arg(package)
   
   all_raking_variables <- unname(unlist(all_raking_variables))
 
@@ -41,6 +62,7 @@ perform_weighting <- function(orig_data = NULL,
   sheet_list <- margins_data$sheet_list
   sheet_list <- sheet_list[sheet_names]
   
+  # TODO to se naredi že v serverju se ne rabi še enkrat tu
   variables <- lapply(sheet_list, FUN = function(x){
     names(x)[1:2][names(x)[1:2] != "Frekvenca"]
   })
@@ -62,15 +84,7 @@ perform_weighting <- function(orig_data = NULL,
     
     selected_data[[two_dim_names]] <- as.factor(paste0(selected_data[[two_dimensional_raking_variables[[i]][1]]],"_",
                                                        selected_data[[two_dimensional_raking_variables[[i]][2]]]))
-  }   
-  
-  # variable_names <- unlist(lapply(variables, FUN = function(x){
-  #   if(length(x) == 2){
-  #     paste0(x, collapse = " x ")
-  #   } else {
-  #     x
-  #   }
-  # }))
+  }
 
   popul_margins <- vector(mode = "list", length = length(sheet_names))
   names(popul_margins) <- sheet_names
@@ -108,18 +122,78 @@ perform_weighting <- function(orig_data = NULL,
     selected_data$caseid <- orig_data[[case_id]]
   } 
   
-  # raking
-  outsave <- anesrake::anesrake(inputter = popul_margins,
-                                dataframe = as.data.frame(selected_data), 
-                                caseid = selected_data$caseid,
-                                type = "nolim", 
-                                verbose = FALSE, ...)
+  if(package == "anesrake"){
+    # raking anesrake
+    outsave <- anesrake::anesrake(inputter = popul_margins,
+                                  dataframe = as.data.frame(selected_data), 
+                                  caseid = selected_data$caseid,
+                                  type = "nolim", 
+                                  verbose = FALSE,
+                                  weightvec = weightvec, ...)
+    
+    outsave$weightvec <- trim_weights(weights = outsave$weightvec,
+                                      lower = lower, upper = upper)
+  }
   
-  outsave$weightvec <- trim_weights(weights = outsave$weightvec,
-                                    lower = lower, upper = upper)
+  if(package == "survey"){
+    
+    two_dim_names_survey <- NULL
+    for(i in seq_along(two_dimensional_raking_variables)){
+      two_dim_names_survey <- c(two_dim_names_survey, paste0(two_dimensional_raking_variables[[i]], collapse = " x "))
+    }
+    
+    names(selected_data)[names(selected_data) %in% two_dim_names_survey] <- gsub(pattern = " ", replacement = ".", x = two_dim_names_survey)
+    
+    n <- nrow(orig_data)
+    
+    pop_margins <- lapply(seq_along(popul_margins), FUN = function(i){
+      temp_df <- data.frame(v = names(popul_margins[[i]]),
+                            Freq = unname(popul_margins[[i]]) * n)
+      names(temp_df)[1] <- gsub(pattern = " ", replacement = ".", x = names(popul_margins[i]))  
+      temp_df
+    })
+    
+    names(pop_margins) <- vapply(pop_margins, FUN = function(x) names(x)[1], FUN.VALUE = character(1))
+    
+    sam_margins <- paste0("list(", 
+                          paste0("~", names(pop_margins), collapse = ", "),
+                          ")")
+    
+    if(is.null(all_raking_variables)){
+      # TODO temporary solution
+      # if no variables are present use anesrake because survey returns an error and app crashes, anesrake returns vector of weights 1
+      outsave <- anesrake::anesrake(inputter = popul_margins,
+                                    dataframe = as.data.frame(selected_data), 
+                                    caseid = selected_data$caseid,
+                                    type = "nolim", 
+                                    verbose = FALSE,
+                                    weightvec = weightvec)
+      
+    } else {
+      # Specify raking design
+      weight_design <- survey::svydesign(ids = ~1, data = selected_data, weights = weightvec)
+      
+      # Perform raking and retrieve weights
+      raking <- survey::rake(design = weight_design, 
+                             sample.margins = eval(parse(text = sam_margins)), 
+                             population.margins = pop_margins,
+                             control = list(maxit = 1000, epsilon = epsilon))
+      
+      raking <- survey::trimWeights(design = raking, upper = upper, lower = lower)
+      
+      outsave <- list(weightvec = weights(raking), 
+                      caseid = selected_data$caseid,
+                      varsused = sheet_names,
+                      survey_design = raking,
+                      prevec = raking$allprob$probs)
+      
+      class(outsave) <- "surveyrake"
+    }
+  }
   
   # save caseid name, in case if user changes this input after weighting is run
   outsave$caseid_name <- ifelse(is.null(case_id), "zaporedna_stevilka", case_id)
+  outsave$package <- package
   
   return(outsave)
 }
@@ -152,7 +226,8 @@ download_weighting_diagnostic <- function(weights_object, file_name, cut_text, i
   
   wb <- createWorkbook()
 
-  tabela <- rbind("Konvergenca:" = diagnostic$convergence,
+  tabela <- rbind("Paket za raking:" = weights_object$package,
+                  "Konvergenca:" = diagnostic$convergence,
                   "Iterativno rezanje uteži:" = iter_cut_text, 
                   "Rezanje uteži po koncu iteracij:" = cut_text,
                   "Uteževalne spremenljivke:" = paste0(diagnostic$raking.variables, collapse = ", "),

@@ -11,6 +11,7 @@ suppressPackageStartupMessages({
   library(labelled)
   library(openxlsx)
   library(anesrake)
+  library(survey)
 })
 
 source("Excel_output_files.R")
@@ -23,7 +24,6 @@ shinyServer(function(input, output, session){
   ## Global settings
   options(shiny.sanitize.errors = FALSE,
           shiny.maxRequestSize = 100 * 1024^2) # Change maximum file size upload to 100 MB
-  
           # htmlwidgets.TOJSON_ARGS = list(na = 'string')) # Display missing values as NA instead of blank space (https://stackoverflow.com/questions/58526047/customizing-how-datatables-displays-missing-values-in-shiny)
   
   # Change style of file upload buttons to primary buttons
@@ -112,19 +112,32 @@ shinyServer(function(input, output, session){
     
     if(nrow(raw_data()) != 0){
       if(input$raw_data_file_type == "sav"){
-        raw_data <- try(haven::as_factor(zap_missing(raw_data()), levels = "both"), silent = TRUE)
+        raw_data <- try(haven::as_factor(raw_data(), levels = "both"), silent = TRUE)
         
-        if(!is.data.frame(raw_data)) raw_data <- haven::as_factor(zap_missing(raw_data()))
+        if(!is.data.frame(raw_data)) raw_data <- haven::as_factor(raw_data())
         
       } else {
         raw_data <- raw_data()
       }
       
+      # https://stackoverflow.com/questions/58526047/customizing-how-datatables-displays-missing-values-in-shiny
+      rowCallback <- c(
+        "function(row, data){",
+        "  for(var i=0; i<data.length; i++){",
+        "    if(data[i] === null){",
+        "      $('td:eq('+i+')', row).html('NA')",
+        "        .css({'color': 'rgb(151,151,151)', 'font-style': 'italic'});",
+        "    }",
+        "  }",
+        "}"  
+      )
+      
       datatable(data = raw_data,
                 class = "nowrap cell-border hover bordered-header",
                 rownames = FALSE,
                 options = list(dom = "ltip",
-                               scrollX = TRUE))
+                               scrollX = TRUE,
+                               rowCallback = JS(rowCallback)))
     }
   })
 
@@ -507,7 +520,7 @@ shinyServer(function(input, output, session){
   
   output$download_inputed_tables <- downloadHandler(
     filename = function() {
-      "Vnesene_margine.Rdata"
+      "Vnesene_margine.RData"
     },
     
     content = function(file) {
@@ -518,13 +531,13 @@ shinyServer(function(input, output, session){
         return()
       }
       
-      results_list <- lapply(seq_along(inputed_tables()), function(i) {
+      inputted_margins_list <- lapply(seq_along(inputed_tables()), function(i) {
         hot_to_r(input[[paste0("input_table_", clean_names()[[i]])]])
       })
       
-      names(results_list) <- clean_names()
+      names(inputted_margins_list) <- clean_names()
       
-      save(object = results_list, file = file)
+      save(object = inputted_margins_list, file = file)
     })
 
   # Weighting tab ---------------------------------------------------------------
@@ -537,7 +550,7 @@ shinyServer(function(input, output, session){
     file_input <- fileInput(inputId = "upload_margins_data", 
                             label = "Naloži datoteko z vnešenimi populacijskimi marginami",
                             multiple = FALSE,
-                            accept = c(".xlsx", ".Rdata"),
+                            accept = c(".xlsx", ".RData"),
                             buttonLabel = "Naloži datoteko")
     
     if(all(input_true)) {
@@ -548,7 +561,7 @@ shinyServer(function(input, output, session){
         radioButtons("radio_which_weighting_vars", 
                      label = "Katere populacijske (ciljne) margine želite upoštevati?",
                      choices = c("Na novo vnešene v zavihku Vnos margin v aplikaciji" = "newly_inputed",
-                                 "Shranjene od prej (v Excel ali Rdata datoteki)" = "saved_inputed")),
+                                 "Shranjene od prej (v Excel ali RData datoteki)" = "saved_inputed")),
         conditionalPanel(condition = "input.radio_which_weighting_vars == 'saved_inputed'",
                          file_input)
       )
@@ -570,7 +583,7 @@ shinyServer(function(input, output, session){
       
       ext <- tools::file_ext(input$upload_margins_data$name)
       
-      if(!(ext %in% c("xlsx", "Rdata"))){
+      if(!(ext %in% c("xlsx", "RData"))){
         shinyjs::show("message_wrong_file")
       } else if(is.null(input$upload_raw_data)){
         shinyjs::show("message_no_file")
@@ -586,42 +599,60 @@ shinyServer(function(input, output, session){
         sheet_names <- openxlsx::getSheetNames(input$upload_margins_data$datapath)
         sheet_list <- lapply(sheet_names, function(sn){openxlsx::read.xlsx(input$upload_margins_data$datapath, sheet = sn)})
         
-        # ensure that full variable names are shown, because Excel sheet names are limited to 31 characters
-        variable_names <- unlist(lapply(sheet_list, FUN = function(x){
-          if(!("Frekvenca" %in% names(x)[1:3])){
-            shinyjs::show("message_wrong_file_structure")
-            return(NULL)
+        file_names_indicator <- vapply(sheet_list, FUN = function(x){
+          if(!all(c("Frekvenca", "Populacijski.(ciljni).%") %in% names(x)[1:5])){
+            TRUE
           } else {
-            shinyjs::hide("message_wrong_file_structure")
+            FALSE
           }
+        }, FUN.VALUE = logical(1))
+        
+        if(any(file_names_indicator)){
+          shinyjs::show("message_wrong_file_structure")
+          sheet_names <- NULL
+          sheet_list <- NULL
+        } else {
+          shinyjs::hide("message_wrong_file_structure")
           
-          # validate(need("Frekvenca" %in% names(x)[1:3],
-          #               message = "Oblika datoteke se ne ujema s predvideno. Naložite pravo Excel datoteko."))
-          
-          var_names <- names(x)[1:2][names(x)[1:2] != "Frekvenca"]
+          # ensure that full variable names are shown, because Excel sheet names are limited to 31 characters
+          variable_names <- vapply(sheet_list, FUN = function(x){
+            var_names <- names(x)[1:2][names(x)[1:2] != "Frekvenca"]
+            if(length(var_names) == 2){
+              paste0(var_names, collapse = " x ")
+            } else {
+              var_names
+            }
+          }, FUN.VALUE = character(1))
           
           # Check if variables are present in uploaded data
-          if(!(any(var_names %in% names(raw_data())))){
+          warning_counter <- vapply(sheet_list, FUN = function(x){
+            var_names <- names(x)[1:2][names(x)[1:2] != "Frekvenca"]
+            if(all(var_names %in% names(raw_data()))){
+              FALSE
+            } else {
+              TRUE
+            }
+          }, FUN.VALUE = logical(1))
+          
+          # Show error if no variables are present in uploaded data
+          if(all(warning_counter)){
             shinyjs::show("message_no_variables_present")
-            return(NULL)
+          } else if(any(warning_counter)) {
+          # Show warning if some variables are not present in uploaded data
+            shinyjs::show("message_some_variables_not_present")
           } else {
             shinyjs::hide("message_no_variables_present")
+            shinyjs::hide("message_some_variables_not_present")
           }
           
-          # validate(need(any(var_names %in% names(raw_data())),
-          #               message = "Izbrane spremenljivke ne obstajajo v naloženih podatkih"))
-          
-          if(length(var_names) == 2){
-            paste0(var_names, collapse = " x ")
-          } else {
-            var_names
-          }
-        }))
+          variable_names <- variable_names[!warning_counter]
+          sheet_list <- sheet_list[!warning_counter]
+          names(sheet_list) <- variable_names
+          sheet_names <- variable_names
+        }
         
-        names(sheet_list) <- variable_names
-        sheet_names <- variable_names
-        
-      } else if(ext == "Rdata"){
+      } else if(ext == "RData"){
+        # TODO preveri strukturo in ... kot pri xlsx
         sheet_list <- load_to_environment(input$upload_margins_data$datapath)
         sheet_names <- names(sheet_list)
       }
@@ -664,6 +695,13 @@ shinyServer(function(input, output, session){
     feedbackDanger("max_weight", is.na(input$max_weight) || input$max_weight <= 1, "Neveljavna vrednost!", color = "red", icon = NULL)
   })
 
+  observe({
+    if(input$package == "anesrake"){
+      shinyjs::enable(id = "cut_weights_iterative")
+    } else {
+      shinyjs::disable(id = "cut_weights_iterative")
+    }
+  })
   
   # Perform weighting when button `run_weighting` is clicked
   weighting_output <- eventReactive(input$run_weighting, {
@@ -695,7 +733,11 @@ shinyServer(function(input, output, session){
     
     if(input$convergence_input == TRUE){
       convcrit <- input$convergence_criterion
-    } else {convcrit <- 0.01}
+      epsilon <- input$convergence_criterion_epsilon
+    } else {
+      convcrit <- 0.01
+      epsilon <- 1e-10
+      }
     
     if(input$base_weights_selection == TRUE){
       if(is.null(input$base_weights_variable)){
@@ -709,20 +751,28 @@ shinyServer(function(input, output, session){
     } else {
       shinyjs::hide("message_no_base_weights_selected")
       weightvec <- NULL
-      }
+    }
+    
+    if(input$case_id_selection == TRUE){
+      case_id <- input$case_id_variable
+    } else {
+      case_id <- NULL
+    }
     
     perform_weighting(orig_data = raw_data(),
                       margins_data = margins_data(),
                       all_raking_variables = input$weights_variables,
-                      case_id = input$case_id_variable,
+                      case_id = case_id,
                       lower = lower,
                       upper = upper,
                       cap = cap, 
                       convcrit = convcrit,
-                      weightvec = weightvec)
+                      epsilon = epsilon,
+                      weightvec = weightvec,
+                      package = input$package)
   })
 
-  cut_weights_text <- reactive({
+  cut_weights_text <- eventReactive(input$run_weighting, {
     text1 <- ifelse(input$cut_weights_after == FALSE || is.na(input$min_weight) || input$min_weight < 0 || input$min_weight >= 1, NA, input$min_weight)
     text2 <- ifelse(input$cut_weights_after == FALSE || is.na(input$max_weight) || input$max_weight <= 1, NA, input$max_weight)
     text <- c(text1, text2)
@@ -748,7 +798,8 @@ shinyServer(function(input, output, session){
     summ <- try(summary(weighting_output()), silent = TRUE)
     deff <- design_effect(weighting_output()$weightvec)
     
-    HTML(paste("<b>Konvergenca:</b>", summ$converge, "</br></br>"),
+    HTML(paste("<b>Paket za raking:</b>", weighting_output()$package, "</br></br>"),
+         paste("<b>Konvergenca:</b>", summ$convergence, "</br></br>"),
          paste("<b>Iterativno rezanje uteži:</b>", cut_weights_text()$text_cut_iter, "</br></br>"),
          paste("<b>Rezanje uteži po koncu iteracij:</b>", cut_weights_text()$text_cut, "</br></br>"),
          paste("<b>Uteževalne spremenljivke:</b>", paste0(summ$raking.variables, collapse = ", "), "</br></br>"),
@@ -816,6 +867,7 @@ shinyServer(function(input, output, session){
   
   # Show distribution of weights
   output$weights_plot <- renderPlot({
+    req(input$run_weighting)
     vec <- weighting_output()$weightvec
     
     plot(hist(x = vec,
@@ -827,6 +879,7 @@ shinyServer(function(input, output, session){
   
   # Show weights' descriptive statistics
   output$summary_stat <- renderTable({
+    req(input$run_weighting)
     data.frame(t(unclass(summary(weighting_output()$weightvec))), check.names = FALSE)
   },
   caption =  "<b><span style='color: #333'> Opisne statistike uteži </b>",
@@ -885,6 +938,16 @@ shinyServer(function(input, output, session){
                                     iter_cut_text = cut_weights_text()$text_cut_iter)
     })
   
+  # Download survey design object
+  output$download_survey_design <- downloadHandler(
+    filename = function() {
+      paste0("survey_design_", paste0(weighting_output()$varsused, collapse = "_"), ".RData")
+    },
+    content = function(file) {
+      survey_design_raking <- weighting_output()$survey_design
+      save(object = survey_design_raking, file = file)
+    })
+  
   # Analyses tab ----------------------------------------------------------------
   
   observe({
@@ -902,6 +965,14 @@ shinyServer(function(input, output, session){
                       inputId = "analyses_weight_variable", choices = names(raw_data()))
   })
   
+  # enable survey SE calculation when svydesign is present
+  observe({
+    if(weighting_output()$package == "survey"){
+      shinyjs::enable("se_calculation")
+    }
+  })
+  
+  # vector of weights (uploaded or from raking in previous step)
   weights_vector <- reactive({
     if(!is.null(input$analyses_weight_variable) && input$select_which_weights == "included_weights"){
       weights <- labelled::user_na_to_na(raw_data()[[input$analyses_weight_variable]])
@@ -920,10 +991,6 @@ shinyServer(function(input, output, session){
     if(input$run_numeric_variables != 0 || input$run_factor_variables != 0){
       if(!is.null(input$analyses_weight_variable) && input$select_which_weights == "included_weights"){
         weights <- labelled::user_na_to_na(raw_data()[[input$analyses_weight_variable]])
-        
-        # if(sum(!is.na(weights)) != nrow(raw_data())){
-        #   validate("Izbrana spremenljivka uteži ne vsebuje enakega števila enot kot naloženi podatki. Izračun uteženih statistik ni mogoč.")
-        # }
         
         if(anyNA(weights)){
           validate("Izbrana spremenljivka uteži vsebuje manjkajoče vrednosti. Izračun uteženih statistik ni mogoč.")
@@ -959,7 +1026,9 @@ shinyServer(function(input, output, session){
     weighted_numeric_statistics(numeric_variables = input$numeric_variables,
                                 orig_data = raw_data(),
                                 weights = weights_vector(),
-                                p_adjust_method = p_adjust_method)
+                                p_adjust_method = p_adjust_method,
+                                se_calculation = input$se_calculation,
+                                survey_design = weighting_output()$survey_design)
   })
   
   # Display message about removal of non-numeric variables when calculating descriptive statistics
@@ -1017,7 +1086,9 @@ shinyServer(function(input, output, session){
       create_w_table(orig_data = raw_data(),
                      variable = input$factor_variables[[i]],
                      weights = weights_vector(),
-                     p_adjust_method = p_adjust_method)
+                     p_adjust_method = p_adjust_method,
+                     se_calculation = input$se_calculation,
+                     survey_design = weighting_output()$survey_design)
     })
     
     names(tables) <- input$factor_variables

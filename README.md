@@ -13,7 +13,7 @@ To run app locally, first you need to install [R](https://cran.r-project.org/), 
 
 ```
 # install missing packages when running app locally from GitHub
-required_packages <- c("shiny", "shinyWidgets", "shinyjs", "shinycssloaders", "shinyFeedback", "DT", "rhandsontable", "haven", "labelled", "openxlsx", "anesrake")
+required_packages <- c("shiny", "shinyWidgets", "shinyjs", "shinycssloaders", "shinyFeedback", "DT", "rhandsontable", "haven", "labelled", "openxlsx", "anesrake", "survey")
 
 for(p in required_packages){
   if(!require(p, character.only = TRUE)) install.packages(p)
