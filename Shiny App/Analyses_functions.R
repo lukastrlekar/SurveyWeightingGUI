@@ -1,6 +1,3 @@
-# TODO
-# preveri povzetek za nominalne spremenljivke
-
 # function to make dummy variable for every level of a factor variable
 # make_dummies <- function(v) {
 #   s <- sort(unique(v))
@@ -405,7 +402,7 @@ download_analyses_factor_tables <- function(factor_tables, orig_data, file, warn
                  gridLines = FALSE)
     
     categories <- abs(na.omit(do.call(rbind, lapply(factor_tables, "[", c(7, 9)))))
-    warning_numerus <- grepl(pattern = "!", x = na.omit(do.call(rbind, lapply(factor_tables, "[", 10))))
+    warning_numerus <- grepl(pattern = "!", x = na.omit(do.call(rbind, lapply(factor_tables, "[", 10)))[[1]])
     
     # temporarily replace p-values with small n with 1 so they are not counted in summary
     if(any(warning_numerus)) categories[warning_numerus,][[2]] <- 1
@@ -454,6 +451,15 @@ download_analyses_factor_tables <- function(factor_tables, orig_data, file, warn
               x = cbind(c(paste("Št. vseh kategorij:", sum(freq_rel_change$sums)),
                           paste("Št. statistično značilnih kategorij (p < 0.05):", sum(freq_rel_change$p_sums)))),
               startCol = 1, startRow = 10, rowNames = FALSE, colNames = FALSE)
+    
+    writeData(wb = wb, sheet = "Povzetek",
+              x = cbind(c(paste("Št. vseh opisnih spremenljivk:", length(factor_tables)),
+                          paste("Št. statistično značilnih opisnih spremenljivk (p < 0.05):",
+                                sum(vapply(seq_along(factor_tables), function(i){
+                                  warning <- grepl(pattern = "!", x = factor_tables[[i]][[10]])
+                                  any(factor_tables[[i]][[9]][!warning] < 0.05, na.rm = TRUE)
+                                }, FUN.VALUE = logical(1)))))),
+              startCol = 1, startRow = 13, rowNames = FALSE, colNames = FALSE)
     
     addStyle(wb = wb, sheet = "Povzetek",
              style = createStyle(textDecoration = "bold",
@@ -543,7 +549,7 @@ download_analyses_factor_tables <- function(factor_tables, orig_data, file, warn
              sheet = "Frekvencne_tabele",
              style = createStyle(halign = "center"),
              rows = 1:(start_rows[length(start_rows)]+nrow(factor_tables[[length(factor_tables)]])),
-             cols = 2:9,
+             cols = 2:10,
              gridExpand = TRUE, stack = TRUE)
     
     setColWidths(wb = wb, sheet = "Frekvencne_tabele", cols = 1:10, widths = c(60, rep(15, 6), 10, 10, 12))

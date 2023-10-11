@@ -1001,7 +1001,8 @@ shinyServer(function(input, output, session){
         }
         
         if(!isTRUE(all.equal(mean(weights, na.rm = TRUE), 1))){
-          validate("Povprečje uteži ni enako 1 (uteži niso normalizirane). Za analize bodo uteži reskalirane, da bo povprečje enako 1. Ali izbrana spremenljivka predstavlja poststratifikacijske uteži?")
+          # TODO dodaj postratifikacisjke uteži imajo načeloma povprečje 1
+          validate("Povprečje uteži ni enako 1 (uteži niso normalizirane). Za analize bodo uteži reskalirane, da bo povprečje enako 1.")
         }
         
       } else if(is.null(input$analyses_weight_variable) && input$select_which_weights == "included_weights"){
