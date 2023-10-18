@@ -322,7 +322,7 @@ shinyUI(
                              wellPanel(
                                pickerInput(
                                  inputId = "weights_variables",
-                                 label = "Izberi spremenljivke za uteževanje",
+                                 label = "Izberi spremenljivke za uteževanje:",
                                  choices = NULL,
                                  multiple = TRUE,
                                  options = list(`actions-box` = TRUE))),
@@ -353,7 +353,8 @@ shinyUI(
                                        conditionalPanel(condition = "input.base_weights_selection == 1",
                                                         p(HTML("<small>Izbirni vnos, če so na voljo vzorčne uteži, stratifikacijski popravek ali druga informacija o verjetnosti vzorčenja, ki jo je treba upoštevati pred izvedbo uteževanja.</small>")),
                                                         pickerInput(inputId = "base_weights_variable",
-                                                                    label = HTML("<small>Izberi spremenljivko, ki predstavlja uteži:</small>"),
+                                                                    label = HTML('<small>Izberi spremenljivko, ki predstavlja uteži
+                                                                                  <span style="font-weight:normal">(pred uteževanjem bodo slednje uteži reskalirane)</span>:</small>'),
                                                                     choices = NULL,
                                                                     options = pickerOptions(
                                                                       liveSearch = TRUE,
@@ -387,7 +388,7 @@ shinyUI(
                                                                       label = HTML("<small>Maksimalna utež:</small>"),
                                                                       value = 5, min = 1, step = 0.5)),
                                                   column(12,
-                                                         p(HTML("<small>Zaradi postopka normalizacije lahko vrednosti porezanih uteži rahlo
+                                                         p(HTML("<small>Ker so uteži po rezanju reskalirane, lahko vrednosti porezanih uteži rahlo
                                                                        presežejo nastavljeno min in max vrednost.</small>"))))),
                                checkboxInput("convergence_input",
                                              label = "Nastavi kriterij za konvergenco"),

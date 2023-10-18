@@ -6,9 +6,12 @@
 #   return(d)
 # }
 
-wtd_t_test <- function(x, mu2 = 0, weights_x = NULL, prop = FALSE, se_calculation = c("taylor_se", "survey_se"), survey_design){
-  se_calculation <- match.arg(se_calculation)
-  
+wtd_t_test <- function(x,
+                       mu2 = 0,
+                       weights_x = NULL,
+                       prop = FALSE,
+                       se_calculation = c("taylor_se", "survey_se"),
+                       survey_design){
   n <- sum(!is.na(x))
   
   if(is.null(weights_x)) weights_x <- rep(1, length(x))
@@ -43,11 +46,12 @@ wtd_t_test <- function(x, mu2 = 0, weights_x = NULL, prop = FALSE, se_calculatio
 }
 
 # weighted frequency tables for weighting variables
-# TODO TREBA ŠE IZBOLJŠATI PRIKAZ IN Z DATATABLE
-# še prevec če je določen
-display_tables_weighting_vars <- function(orig_data, sheet_list_table, weights){
+display_tables_weighting_vars <- function(orig_data,
+                                          sheet_list_table,
+                                          prevec = NULL){
   one_dimensional_raking_variable <- NULL
   two_dimensional_raking_variables <- NULL
+  prevec_indicator <- FALSE
   
   df <- sheet_list_table
   
@@ -60,35 +64,44 @@ display_tables_weighting_vars <- function(orig_data, sheet_list_table, weights){
   n_col <- ncol(df)
   df <- df[-nrow(df),]
   
-  if(n_col == 5 && nrow(df) > 0){
+  prx <- "Neutežen (vzorčni)"
+  if (sum(prevec == 1) != length(prevec)) {
+    prx <- "Stare uteži (vzorčni)"
+    prevec_indicator <- TRUE
+  }
+    
+  column_names <- c(paste(prx, "N"),
+                    paste(prx, "%"),
+                    "Populacijski (ciljni) %")
+  
+  if(n_col == 5){
     two_dimensional_raking_variables <- c(names(df)[1], names(df)[2])
     two_dim_names <- paste0(two_dimensional_raking_variables, collapse = " x ")
     df <- cbind(paste0(df[[1]],"_",df[[2]]), df[,3:n_col])
-    names(df) <- c(two_dim_names, "Vzorčni N", "Vzorčni %", "Populacijski (ciljni) %")
+    names(df) <- c(two_dim_names, column_names)
     
-  } else{
-    one_dimensional_raking_variable <- names(df)[1]
-    names(df) <- c(one_dimensional_raking_variable, "Vzorčni N", "Vzorčni %", "Populacijski (ciljni) %")
-  }
-  
-  
-  if(!is.null(weights) && is.numeric(weights)){
-    levels <- df[[1]]
-    
-    if(!is.null(one_dimensional_raking_variable)){
-      orig_data[[one_dimensional_raking_variable]] <- droplevels(clean_data(orig_data[[one_dimensional_raking_variable]]))
-      df[["Utežen N"]] <- weighted_table(orig_data[[one_dimensional_raking_variable]], weights = weights)[levels]
-      
-    } else{
+    if(prevec_indicator){
+      levels <- df[[1]]
       orig_data[[two_dimensional_raking_variables[1]]] <- droplevels(clean_data(orig_data[[two_dimensional_raking_variables[1]]]))
       orig_data[[two_dimensional_raking_variables[2]]] <- droplevels(clean_data(orig_data[[two_dimensional_raking_variables[2]]]))
       
       orig_data[[two_dim_names]] <- as.factor(paste0(orig_data[[two_dimensional_raking_variables[1]]],"_",
                                                      orig_data[[two_dimensional_raking_variables[2]]]))
-      df[["Utežen N"]] <- weighted_table(orig_data[[two_dim_names]], weights = weights)[levels]
+      
+      df[[2]] <- weighted_table(orig_data[[two_dim_names]], weights = prevec)[levels]
+      df[[3]] <- (df[[2]]/sum(df[[2]]))*100
     }
     
-    df[["Utežen %"]] <- (df[["Utežen N"]]/sum(df[["Utežen N"]]))*100
+  } else {
+    one_dimensional_raking_variable <- names(df)[1]
+    names(df) <- c(one_dimensional_raking_variable, column_names)
+    
+    if(prevec_indicator){
+      levels <- df[[1]]
+      orig_data[[one_dimensional_raking_variable]] <- droplevels(clean_data(orig_data[[one_dimensional_raking_variable]]))
+      df[[2]] <- weighted_table(orig_data[[one_dimensional_raking_variable]], weights = prevec)[levels]
+      df[[3]] <- (df[[2]]/sum(df[[2]]))*100
+    }
   }
   
   temp_df <- data.frame(v1 = "Skupaj", t(colSums(df[-1])))

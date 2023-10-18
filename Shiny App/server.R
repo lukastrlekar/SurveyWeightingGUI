@@ -684,15 +684,21 @@ shinyServer(function(input, output, session){
   })
   
   observe({
-    feedbackDanger("cap_weights", is.na(input$cap_weights) || input$cap_weights <= 1, "Neveljavna vrednost!", color = "red", icon = NULL)
-  })
-
-  observe({
-    feedbackDanger("min_weight", is.na(input$min_weight) || input$min_weight < 0 || input$min_weight >= 1, "Neveljavna vrednost!", color = "red", icon = NULL)
+    req(input$base_weights_variable)
+    feedbackDanger("base_weights_variable", anyNA(raw_data()[[input$base_weights_variable]]) || !is.numeric(raw_data()[[input$base_weights_variable]]),
+                   "Uteži ne smejo vsebovati manjkajočih ali neštevilskih vrednosti", color = "red", icon = NULL)
   })
   
   observe({
-    feedbackDanger("max_weight", is.na(input$max_weight) || input$max_weight <= 1, "Neveljavna vrednost!", color = "red", icon = NULL)
+    feedbackDanger("cap_weights", is.na(input$cap_weights) || input$cap_weights <= 1, "Neveljavna vrednost", color = "red", icon = NULL)
+  })
+
+  observe({
+    feedbackDanger("min_weight", is.na(input$min_weight) || input$min_weight < 0 || input$min_weight >= 1, "Neveljavna vrednost", color = "red", icon = NULL)
+  })
+  
+  observe({
+    feedbackDanger("max_weight", is.na(input$max_weight) || input$max_weight <= 1, "Neveljavna vrednost", color = "red", icon = NULL)
   })
 
   observe({
@@ -746,6 +752,10 @@ shinyServer(function(input, output, session){
       } else {
         shinyjs::hide("message_no_base_weights_selected")
         weightvec <- raw_data()[[input$base_weights_variable]]
+        
+        if(anyNA(weightvec) || !is.numeric(weightvec)){
+          weightvec <- NULL
+        }
       }
       
     } else {
@@ -818,52 +828,77 @@ shinyServer(function(input, output, session){
                              scrollCollapse = TRUE))
   })
   
-  selected_weighting_variables <- reactive({
-    if(!is.null(margins_data())){
+  # Show weighting variables frequency tables
+  observe({
+    output$weighting_variables_tables <- renderUI({
       sheet_names <- margins_data()$sheet_names
       sheet_names <- sheet_names[sheet_names %in% input$weights_variables]
       
       sheet_list <- margins_data()$sheet_list
       sheet_list <- sheet_list[sheet_names]
       
-      list(sheet_names = sheet_names,
-           sheet_list = sheet_list)
-    }
-  })
-  
-  # Show weighting variables frequency tables
-  observe({
-    output$weighting_variables_tables <- renderUI({
-      n_tabs <- length(selected_weighting_variables()$sheet_names)
+      n_tabs <- length(sheet_names)
+      
+      if(input$base_weights_selection == TRUE){
+        if(is.null(input$base_weights_variable)){
+          prevec <- NULL
+        } else {
+          prevec <- raw_data()[[input$base_weights_variable]]
+          
+          if(anyNA(prevec) || !is.numeric(prevec)){
+            prevec <- NULL
+          }
+        }
+      } else {
+        prevec <- NULL
+      }
       
       displayed_tabs <- lapply(seq_len(n_tabs), function(i){
-        tabPanel(title = selected_weighting_variables()$sheet_names[i],
+        tabPanel(title = sheet_names[i],
                  br(),
-                 renderTable(display_tables_weighting_vars(orig_data = NULL,
-                                                           sheet_list_table = selected_weighting_variables()$sheet_list[[i]],
-                                                           weights = NULL),
-                             hover = TRUE, bordered = TRUE, spacing = "xs"))})
-      
+                 datatable(display_tables_weighting_vars(orig_data = raw_data(),
+                                                         sheet_list_table = sheet_list[[i]],
+                                                         prevec = prevec),
+                           rownames = FALSE,
+                           class = "compact cell-border hover bordered-header",
+                           options = list(dom = "t",
+                                          paging = FALSE,
+                                          ordering = FALSE,
+                                          columnDefs = list(list(className = 'dt-center', targets = "_all")))) %>% 
+                   formatRound(columns = 3:4, digits = 2) %>% 
+                   formatRound(columns = 2, digits = 0),
+                 br()
+        )})
       do.call(tabsetPanel, displayed_tabs)
     })
   })
   
   observeEvent(input$run_weighting, {
-    output$weighting_variables_tables <- renderUI({ 
-      n_tabs <- length(selected_weighting_variables()$sheet_names)
+    output$weighting_variables_tables <- renderUI({
+      tbl_list <- weightassess(inputter = weighting_output()$targets,
+                               dataframe = weighting_output()$dataframe,
+                               weightvec = weighting_output()$weightvec,
+                               prevec = weighting_output()$prevec)
+      n_tabs <- length(tbl_list)
       
       displayed_tabs <- lapply(seq_len(n_tabs), function(i){
-        tabPanel(title = selected_weighting_variables()$sheet_names[i],
+        tabPanel(title = weighting_output()$varsused[i],
                  br(),
-                 renderTable(display_tables_weighting_vars(orig_data = raw_data(),
-                                                           sheet_list_table = selected_weighting_variables()$sheet_list[[i]],
-                                                           weights = weighting_output()$weightvec),
-                             hover = TRUE, bordered = TRUE, spacing = "xs"))})
-      
+                 datatable(tbl_list[[i]],
+                           rownames = FALSE,
+                           class = "compact cell-border hover bordered-header",
+                           options = list(dom = "t",
+                                          paging = FALSE,
+                                          ordering = FALSE,
+                                          columnDefs = list(list(className = 'dt-center', targets = "_all")))) %>% 
+                   formatRound(columns = c(3,5:7), digits = 2) %>% 
+                   formatRound(columns = 8, digits = 5) %>% 
+                   formatRound(columns = c(2,4), digits = 0),
+                 br()
+        )})
       do.call(tabsetPanel, displayed_tabs)
     })
   })
-  
   
   # Show distribution of weights
   output$weights_plot <- renderPlot({
@@ -993,11 +1028,11 @@ shinyServer(function(input, output, session){
         weights <- labelled::user_na_to_na(raw_data()[[input$analyses_weight_variable]])
         
         if(anyNA(weights)){
-          validate("Izbrana spremenljivka uteži vsebuje manjkajoče vrednosti. Izračun uteženih statistik ni mogoč.")
+          validate("Izbrana spremenljivka uteži ne sme vsebovati manjkajočih vrednosti.")
         }
         
         if(!is.numeric(weights)){
-          validate("Izbrana spremenljivka za uteži ni številska. Ali izbrana spremenljivka predstavlja poststratifikacijske uteži?")
+          validate("Izbrana spremenljivka za uteži ni številska. Izračun uteženih statistik ni mogoč.")
         }
         
         if(!isTRUE(all.equal(mean(weights, na.rm = TRUE), 1))){
@@ -1059,7 +1094,7 @@ shinyServer(function(input, output, session){
       tagList(
         p(HTML("<small>Signifikanca: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001</small>")),
         datatable(weighted_numeric_table()$calculated_table,
-                  rownames= FALSE,
+                  rownames = FALSE,
                   class = "compact cell-border hover bordered-header",
                   options = list(dom = "t",
                                  paging = FALSE,

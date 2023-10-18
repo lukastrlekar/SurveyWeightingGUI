@@ -11,13 +11,50 @@ trim_weights <- function(weights, lower = -Inf, upper = Inf){
 
 # TODO
 # design effect preveri izračun in navedi vir
-# za survey rakign če je error da se izpiše kaj informativnega
+# za survey rakign če je error da se izpiše kaj informativnega in konvergenca
 
 # Kish (1992) estimator for design effect
 design_effect <- function(weights) {
   weights <- weights[!is.na(weights)] * sum(!is.na(weights))/sum(weights[!is.na(weights)])
   deff <- sum(weights^2)/sum(weights)
   return(deff)
+}
+
+weightassess <- function(inputter, dataframe, weightvec, prevec = NULL) {
+  if (is.null(prevec)) {
+    prevec <- rep(1, length(weightvec))
+  }
+  
+  prx <- "Neutežen (vzorčni)"
+  if (sum(prevec == 1) != length(prevec)) {
+    prx <- "Stare uteži (vzorčni)"
+  }
+  
+  out <- list()
+  
+  for(i in names(inputter)) {
+    target <- inputter[[i]] * 100
+    levels <- names(target)
+    orign <- weighted_table(dataframe[, i], weights = prevec)[levels]
+    origpct <- (orign/sum(orign)) * 100
+    newn <- weighted_table(dataframe[, i], weights = weightvec)[levels]
+    newpct <- (newn/sum(newn)) * 100
+    chpct <- newpct - origpct
+    rdisc <- target - newpct
+    nout <- cbind(orign, origpct, newn, newpct, target, chpct, rdisc)
+    nout2 <- rbind.data.frame(nout, Skupaj = apply(nout, 2, function(x) sum(abs(x), na.rm = TRUE)))
+    nout2 <- cbind.data.frame(rownames(nout2), nout2)
+    colnames(nout2) <- c(i,
+                         paste(prx, "N"),
+                         paste(prx, "%"),
+                         "Utežen N",
+                         "Utežen %",
+                         "Populacijski (ciljni) %",
+                         "Absolutna razlika utežen neutežen % (odst. točke)",
+                         "Rezidualna razlika ciljni utežen % (odst. točke)")
+    out[[i]] <- nout2
+  }
+  out
 }
 
 # generic summary for raking with survey package
@@ -27,11 +64,28 @@ summary.surveyrake <- function(object, ...) {
   if(sum(object$prevec==1) == length(object$prevec)){
     bwstat <- "No Base Weights Were Used"
   }
-  
-  out <- list(paste("Convergence was achieved"),
-              bwstat,
-              object$varsused)
-  names(out) <- namer
+  part1list <- list(paste("Convergence was achieved"),
+                    bwstat,
+                    object$varsused)
+  names(part1list) <- namer
+  part2list <- weightassess(object$targets, object$dataframe, 
+                            object$weightvec, object$prevec)
+  out <- c(part1list, part2list)
+  out
+}
+
+# anesrake summary function code with slight modifications
+summary.anesrake <- function(object, ...) {
+  namer <- c("convergence", "base.weights", "raking.variables")
+  bwstat <- "Using Base Weights Provided"
+  if(sum(object$prevec==1)==length(object$prevec)){
+    bwstat <- "No Base Weights Were Used"
+  }
+  part1list <- list(paste(object$converge, "after", object$iterations, "iterations"), bwstat, object$varsused)
+  names(part1list) <- namer
+  part2list <- weightassess(object$targets, object$dataframe, 
+                            object$weightvec, object$prevec)
+  out <- c(part1list, part2list)
   out
 }
 
@@ -45,17 +99,8 @@ perform_weighting <- function(orig_data = NULL,
                               package = c("anesrake", "survey"),
                               weightvec,
                               epsilon, ...){
-  
-  package <- match.arg(package)
-  
-  all_raking_variables <- unname(unlist(all_raking_variables))
 
-  # path <- "Test files/Vnos_margin.xlsx"
-  # all_raking_variables <- sheet_names
-  # path <- "Test files/Vnos margin (16).xlsx"
-  # sheet_names <- openxlsx::getSheetNames(path)
-  # sheet_names <- sheet_names[sheet_names %in% all_raking_variables]
-  # sheet_list <- lapply(sheet_names, function(sn){openxlsx::read.xlsx(path, sheet = sn)})
+  all_raking_variables <- unname(unlist(all_raking_variables))
   
   sheet_names <- margins_data$sheet_names
   sheet_names <- sheet_names[sheet_names %in% all_raking_variables]
@@ -67,7 +112,7 @@ perform_weighting <- function(orig_data = NULL,
     names(x)[1:2][names(x)[1:2] != "Frekvenca"]
   })
   
-  selected_data <- orig_data[ ,unlist(variables), drop = FALSE] # unlist use.names ?
+  selected_data <- orig_data[ ,unlist(variables), drop = FALSE]
   
   selected_data[] <- lapply(selected_data, FUN = function(x){
     droplevels(clean_data(variable = x))
@@ -109,9 +154,9 @@ perform_weighting <- function(orig_data = NULL,
     popul_margins[[i]] <- temp_vec/100
 
     if(all(levels(selected_data[[names(popul_margins)[[i]]]]) %in% names(temp_vec)) != TRUE){
-      stop("Population and sample levels must match. Variable categories ",
-           paste0(levels(selected_data[[names(popul_margins)[[i]]]])[which(levels(selected_data[[names(popul_margins)[[i]]]]) %in% names(temp_vec) == FALSE)], collapse = ", "),
-           " are observed in sample but not in population margins.")
+      validate("Population and sample levels must match. Variable categories ",
+               paste0(levels(selected_data[[names(popul_margins)[[i]]]])[which(levels(selected_data[[names(popul_margins)[[i]]]]) %in% names(temp_vec) == FALSE)], collapse = ", "),
+               "are observed in sample but not in population margins.")
     }
   }
   
@@ -137,12 +182,10 @@ perform_weighting <- function(orig_data = NULL,
   
   if(package == "survey"){
     
-    two_dim_names_survey <- NULL
     for(i in seq_along(two_dimensional_raking_variables)){
-      two_dim_names_survey <- c(two_dim_names_survey, paste0(two_dimensional_raking_variables[[i]], collapse = " x "))
+      two_dim_names_survey <- paste0(two_dimensional_raking_variables[[i]], collapse = " x ")
+      selected_data[[gsub(pattern = " ", replacement = ".", x = two_dim_names_survey)]] <- selected_data[[two_dim_names_survey]]
     }
-    
-    names(selected_data)[names(selected_data) %in% two_dim_names_survey] <- gsub(pattern = " ", replacement = ".", x = two_dim_names_survey)
     
     n <- nrow(orig_data)
     
@@ -185,7 +228,9 @@ perform_weighting <- function(orig_data = NULL,
                       caseid = selected_data$caseid,
                       varsused = sheet_names,
                       survey_design = raking,
-                      prevec = raking$allprob$probs)
+                      prevec = weightvec,
+                      targets = popul_margins,
+                      dataframe = selected_data)
       
       class(outsave) <- "surveyrake"
     }
@@ -197,7 +242,6 @@ perform_weighting <- function(orig_data = NULL,
   
   return(outsave)
 }
-
 
 download_weights <- function(weights_object = NULL,
                              file_type,
@@ -217,8 +261,10 @@ download_weights <- function(weights_object = NULL,
          sav = haven::write_sav(data = caseweights, path = file_name))
 }
 
-
-download_weighting_diagnostic <- function(weights_object, file_name, cut_text, iter_cut_text){
+download_weighting_diagnostic <- function(weights_object,
+                                          file_name,
+                                          cut_text,
+                                          iter_cut_text){
   
   diagnostic <- summary(weights_object)
   vec <- weights_object$weightvec
@@ -283,7 +329,9 @@ download_weighting_diagnostic <- function(weights_object, file_name, cut_text, i
     writeData(wb = wb,
               sheet = sheet_name,
               x = diagnostic[[all_raking_variables[i]]],
-              rowNames = TRUE, borders = "all", headerStyle = createStyle(border = "TopBottomLeftRight"))
+              rowNames = FALSE, borders = "all", headerStyle = createStyle(border = "TopBottomLeftRight",
+                                                                           halign = "center",
+                                                                           textDecoration = "bold"))
     setColWidths(wb = wb,
                  sheet = sheet_name,
                  cols = 1:9,
