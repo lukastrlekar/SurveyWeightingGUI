@@ -331,8 +331,10 @@ shinyUI(
                                p(strong("Nastavitve uteževanja")),
                                radioButtons("package",
                                             label = HTML('<span style="font-weight:normal">Izberi paket, s katerim se izvede uteževanje:</span>'),
-                                            choices = list("anesrake" = "anesrake",
-                                                           "survey" = "survey"),
+                                            choiceNames = list(HTML("anesrake (<a href='https://cran.r-project.org/web/packages/anesrake/index.html' target='_blank'>?</a>)"),
+                                                               HTML("survey (<a href='https://cran.r-project.org/web/packages/survey/index.html' target='_blank'>?</a>)")),
+                                            choiceValues = list("anesrake",
+                                                                "survey"),
                                             inline = TRUE),
                                fluidRow(
                                  column(6,
@@ -423,8 +425,6 @@ shinyUI(
                                                                id = "message_no_base_weights_selected",
                                                                style = "color:red;")),
                                                       
-                                                      # htmlOutput("weighting_variables_input_messages"),
-                                                      #tags$head(tags$style("#code_summary{overflow-y:scroll; max-height: 200px; background: white; border: white}")),
                                                       shinycssloaders::withSpinner(
                                                         htmlOutput("code_summary")),
                                                       br(),
@@ -493,8 +493,8 @@ shinyUI(
                                                                        hr(),
                                                                        fluidRow(
                                                                          column(6,
-                                                                                p(strong(HTML("Prenos <tt>svydesign</tt> R objekta iz paketa <i>survey</i>"))),
-                                                                                p(HTML("<small>Prenesite <tt>svydesign</tt> objekt za nadaljne analize v R s paketom survey. V objektu so shranjene informacije
+                                                                                p(strong(HTML("Prenos <tt>svydesign</tt> R objekta iz paketa <tt>survey</tt>"))),
+                                                                                p(HTML("<small>Prenesite <tt>svydesign</tt> objekt za nadaljne analize v R s paketom <tt>survey</tt> V objektu so shranjene informacije
                                                                o uteževanju, ki omogočajo pravilen (natančen) izračun standardnih napak, ne zgolj aproksimativen (npr. s Taylorjevo linearizacijo).</small>")),
                                                                                 br(),
                                                                                 downloadButton("download_survey_design",
@@ -530,7 +530,7 @@ shinyUI(
                                         htmlOutput("weights_message"),
                                         br(),
                                         checkboxInput("adjust_p_values",
-                                                      label = HTML("Popravi p vrednosti zaradi večkratnega preizkušanja domnev")),
+                                                      label = HTML('Popravi p vrednosti zaradi večkratnega preizkušanja domnev (<a href="https://en.wikipedia.org/wiki/Multiple_comparisons_problem" target="_blank">?</a>)')),
                                         conditionalPanel(condition = "input.adjust_p_values == 1",
                                                          selectInput("select_p_adjust_method",
                                                                      label = "Izberi metodo popravljanja p vrednosti:",
@@ -545,8 +545,10 @@ shinyUI(
                                  column(7,
                                         disabled(radioButtons("se_calculation",
                                                               label = "Izberi način izračuna standardne napake (SE):",
-                                                              choices = c("Aproksimativen izračun SE s Taylorjevo linearizacijo za razmernostno cenilko" = "taylor_se",
-                                                                          "Natančen izračun SE s paketom survey" = "survey_se"))),
+                                                              choiceNames = list(HTML('Aproksimativen izračun SE s Taylorjevo linearizacijo za razmernostno cenilko (<a href="https://stats.stackexchange.com/questions/525741/how-to-estimate-the-approximate-variance-of-the-weighted-mean" target="_blank">?</a>)'),
+                                                                                 HTML('Natančen izračun SE s paketom <tt>survey</tt> (<a href="https://stackoverflow.com/questions/77098620/analyzing-survey-data-in-r-after-creating-raked-weights-with-rake-from-the-r-s" target="_blank">?</a>)')),
+                                                              choiceValues = list("taylor_se",
+                                                                                  "survey_se"))),
                                         p(HTML('<small><b>Preverjanje statistične značilnosti vpliva uteževanja:</b> Za številske spremenljivke se preverja ničelna domneva, da je uteženo povprečje enako neuteženemu. Uporabljen je t-test
                                         za en vzorec.
                                         Za vsako kategorijo spremenljivke v frekvenčnih tabelah se preverja ničelno domnevo, da je utežen delež enak neuteženemu. Uporabljen je 
