@@ -324,13 +324,13 @@ ui <-
                              wellPanel(
                                uiOutput("which_weighting_vars"),
                                
-                               hidden(p(HTML("Naložite Excel (.xlsx) ali .Rdata datoteko, ki ste jo prenesli v zavihku <i>Vnos populacijskih margin</i>."),
+                               hidden(p(HTML("Naložite Excel (.xlsx) ali .Rdata datoteko, ki ste jo prenesli v zavihku <i>Vnos margin</i>."),
                                         id = "message_wrong_file",
                                         style = "color:red;")),
                                hidden(p(HTML("Naložite podatke v zavihku <i>Nalaganje podatkov</i>."),
                                         id = "message_no_file",
                                         style = "color:red;")),
-                               hidden(p(HTML("Oblika datoteke se ne ujema s predvideno. Naložite Excel datoteko, ki ste jo prenesli v zavihku <i>Vnos populacijskih margin</i>."),
+                               hidden(p(HTML("Oblika datoteke se ne ujema s predvideno. Naložite Excel datoteko, ki ste jo prenesli v zavihku <i>Vnos margin</i>."),
                                         id = "message_wrong_file_structure",
                                         style = "color:red;")),
                                hidden(p("Spremenljivke v podani datoteki ne obstajajo v naloženih podatkih.",

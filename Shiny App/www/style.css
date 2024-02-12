@@ -161,13 +161,14 @@
                                     opacity: .90;
                                   }
                                   
+                                  /* Style front page text */
                                   .landing-box {
                                     position: relative;
                                     font-size: 16px;
                                     padding: 20px;
                                     margin: 16px;
                                     text-align: center;
-                                }
+                                  }
                                 
                                   .landing-number {
                                     position: absolute;
@@ -179,4 +180,4 @@
                                     font-size: 16px;
                                     padding: 3px 10px;
                                     border-radius: 50%;
-                                }
+                                  }
