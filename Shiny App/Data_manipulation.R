@@ -59,7 +59,7 @@ display_tables <- function(orig_data = NULL,
     if(length(all_raking_variables_list[[i]]) == 1){
       temp_var <- all_raking_variables_list[[i]]
       
-      temp_df <- data.frame(table(clean_data(orig_data[[temp_var]]), useNA = "no"))
+      temp_df <- as.data.frame.table(table(clean_data(orig_data[[temp_var]]), useNA = "no"), stringsAsFactors = FALSE)
       temp_df$prop <- (temp_df$Freq/sum(temp_df$Freq))*100
       temp_df <- rbind(temp_df, data.frame(Var1 = "Skupaj", t(colSums(temp_df[,-1, drop = FALSE]))))
       colnames(temp_df) <- c(temp_var, "Frekvenca", "Odstotek (%)")
@@ -79,8 +79,8 @@ display_tables <- function(orig_data = NULL,
       temp_var1 <- all_raking_variables_list[[i]][[1]]
       temp_var2 <- all_raking_variables_list[[i]][[2]]
       
-      temp_df <- data.frame(table(clean_data(orig_data[[temp_var1]]),
-                                  clean_data(orig_data[[temp_var2]]), useNA = "no"))
+      temp_df <- as.data.frame.table(table(clean_data(orig_data[[temp_var1]]),
+                                           clean_data(orig_data[[temp_var2]]), useNA = "no"), stringsAsFactors = FALSE)
       temp_df$prop <- (temp_df$Freq/sum(temp_df$Freq))*100
       temp_df <- rbind(temp_df, data.frame(Var1 = "Skupaj", 
                                            Var2 = "Skupaj",
@@ -120,7 +120,7 @@ input_tables <- function(orig_data = NULL,
     if(length(all_raking_variables_list[[i]]) == 1){
       temp_var <- all_raking_variables_list[[i]]
       
-      temp_df <- as.data.frame(table(clean_data(orig_data[[temp_var]]), useNA = "no"))
+      temp_df <- as.data.frame.table(table(clean_data(orig_data[[temp_var]]), useNA = "no"), stringsAsFactors = FALSE)
       temp_df$prop <- (temp_df$Freq/sum(temp_df$Freq))*100
       temp_df$popul <- rep(0, nrow(temp_df))
       temp_df$input <- rep(0, nrow(temp_df))
@@ -142,8 +142,8 @@ input_tables <- function(orig_data = NULL,
       temp_var1 <- all_raking_variables_list[[i]][[1]]
       temp_var2 <- all_raking_variables_list[[i]][[2]]
       
-      temp_df <- data.frame(table(clean_data(orig_data[[temp_var1]]),
-                                  clean_data(orig_data[[temp_var2]]), useNA = "no"))
+      temp_df <- as.data.frame.table(table(clean_data(orig_data[[temp_var1]]),
+                                           clean_data(orig_data[[temp_var2]]), useNA = "no"), stringsAsFactors = FALSE)
       temp_df$prop <- (temp_df$Freq/sum(temp_df$Freq))*100
       temp_df$popul <- rep(0, nrow(temp_df))
       temp_df$input <- rep(0, nrow(temp_df))

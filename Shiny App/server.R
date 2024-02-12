@@ -19,7 +19,7 @@ source("Data_manipulation.R")
 source("Raking_script.R")
 source("Analyses_functions.R")
 
-shinyServer(function(input, output, session){
+server <- function(input, output, session){
   
   ## Global settings
   options(shiny.sanitize.errors = FALSE,
@@ -73,7 +73,7 @@ shinyServer(function(input, output, session){
         "<h4><strong><center>Poststratifikacijsko uteževanje anket</center></strong></h4>
           </br>
           S poststratifikacijskim uteževanjem porazdelitve izbranih, običajno demografskih, spremenljivk z vzorca uskladimo z znano populacijsko (ciljno) porazdelitvijo teh spremenljivk.
-          V aplikaciji je implementirana v praksi najpogosteje uporabljena metoda uteževanja raking (implementirana v R paketu anesrake), ki deluje tako, da ponavlja postopek 
+          V aplikaciji je implementirana v praksi najpogosteje uporabljena metoda uteževanja raking, ki deluje tako, da ponavlja postopek 
           poststratifikacije iterativno za vsako izbrano spremenljivko posebej, dokler se vzorčni deleži ne približajo populacijskim dovolj natančno.
           </br></br>           
           Tako uteževanje vrne uteži, ki zagotovijo, da se uteženi rezultati anket ujemajo s populacijskimi (ciljnimi) porazdelitvami izbranih spremenljivk. Uporaba teh uteži v statističnih analizah
@@ -84,6 +84,20 @@ shinyServer(function(input, output, session){
       footer = modalButton(icon("xmark"))
     ))
   })
+  
+  # show notification about duration of use only online (shinyapps.io)
+  is_online_server <- nzchar(Sys.getenv("SHINY_PORT"))
+  
+  observe({
+    if(is_online_server){
+      showNotification(ui = HTML("<h4>Opozorilo o trajanju aplikacije</h4> </br>
+                               Uporabljate spletno verzijo aplikacije. Po 15 minutah neuporabe oziroma neaktivnosti
+                               se bo aplikacija ustavila in vnešeni podatki bodo ponastavljeni. Priporočamo, da si shranite svoje delo. </br></br>
+                               Časovno neomejena uporaba je na voljo lokalno, navodila so dostopna <a href='https://github.com/lukastrlekar/SurveyWeightingGUI' target='_blank'>tukaj (GitHub)</a>."),
+                       duration = NULL,
+                       closeButton = TRUE)
+    }
+  }) 
   
   # Data upload tab -------------------------------------------------------------
   
@@ -289,13 +303,13 @@ shinyServer(function(input, output, session){
                       br(),
                       br()),
                column(2,
-                      htmlOutput(paste0("input_sum_message_", clean_names()[[i]])),
                       htmlOutput(paste0("input_error_header_", clean_names()[[i]])),
                       htmlOutput(paste0("input_error_messages1_", clean_names()[[i]])),
                       htmlOutput(paste0("input_error_messages2_", clean_names()[[i]])),
                       htmlOutput(paste0("input_warning_header_", clean_names()[[i]])),
                       htmlOutput(paste0("input_warning_messages_", clean_names()[[i]])),
-                      htmlOutput(paste0("input_recommend_messages_", clean_names()[[i]]))))})
+                      htmlOutput(paste0("input_recommend_messages_", clean_names()[[i]])),
+                      htmlOutput(paste0("input_sum_message_", clean_names()[[i]]))))})
     
     do.call(tabsetPanel, inputed_tabs)
   })
@@ -458,30 +472,22 @@ shinyServer(function(input, output, session){
             hot_validate_numeric(cols = n_col, min = 0, max = 100)
         })
         
-        output[[paste0("input_sum_message_", clean_names()[[i]])]] <- renderText({
-          s <- df[n,n_col]
-          if((s != 1 && s != 100) && s != 0){
-            paste('<p style="background-color:#FFFF65;">&nbspVsota vnesenih margin ni 100%</p>')
-          }
-        })
-        
         output[[paste0("input_error_header_", clean_names()[[i]])]] <- renderText({
           if(length(row_highlight_error) != 0){
-            paste('<strong>Kritična opozorila (uteževanje ne bo delovalo):</strong> </br> </br>')
+            paste('<strong>Kritična opozorila (uteževanje ne bo delovalo):</strong></br>')
           }
         })
-        
         
         ### Warning: Error in if: missing value where TRUE/FALSE needed
         output[[paste0("input_error_messages1_", clean_names()[[i]])]] <- renderText({
           if(isTRUE(length(row_highlight_error) != 0 && any((df[-c(n_miss,n),n_col-1] == 0 & df[-c(n_miss,n),n_col-3] > 0)))){
-            paste('<p style="background-color:#FF4B4B;">&nbspNičelna populacijska in neničelna vzorčna margina</p>')
+            paste('<p style="background-color:#FF4B4B;">Ničelna populacijska in neničelna vzorčna margina</p>')
           }
         })
         
         output[[paste0("input_error_messages2_", clean_names()[[i]])]] <- renderText({
           if(length(row_highlight_error) != 0 && any((df[-c(n_miss,n),n_col-1] > 0 & df[-c(n_miss,n),n_col-3] == 0))){
-            paste('<p style="background-color:#FF4B4B;">&nbspNeničelna populacijska in ničelna vzorčna margina</p>')
+            paste('<p style="background-color:#FF4B4B;">Neničelna populacijska in ničelna vzorčna margina</p>')
           }
         })
         
@@ -491,27 +497,35 @@ shinyServer(function(input, output, session){
                  length(row_highlight_small) != 0,
                  length(row_highlight_small_sample) != 0)){
             paste('<br/><strong>Priporočila: </br>
-                  <small>(priporočena je priključitev obarvanih kategorij k vsebinsko podobni kategoriji)</small></strong> </br> </br>')
+                  <small>(priporočena je priključitev obarvanih kategorij k vsebinsko podobni kategoriji)</small></strong></br>')
           }
         })
         
         output[[paste0("input_warning_messages_", clean_names()[[i]])]] <- renderText({
           if(length(row_highlight_critical) != 0 && length(row_highlight_critical_sample) != 0){
-            paste('<p style="background-color:#FFC000;">&nbspKritično majhne kategorije (n < 11) in populacijske margine (< 1%)</p>')
+            paste('<p style="background-color:#FFC000;">Kritično majhne kategorije (n ≤ 10) in populacijske margine (< 1%)</p>')
           } else if(length(row_highlight_critical) != 0 && length(row_highlight_critical_sample) == 0){
-            paste('<p style="background-color:#FFC000;">&nbspKritično majhne populacijske margine (< 1%)</p>')
+            paste('<p style="background-color:#FFC000;">Kritično majhne populacijske margine (< 1%)</p>')
           } else if(length(row_highlight_critical) == 0 && length(row_highlight_critical_sample) != 0){
-            paste('<p style="background-color:#FFC000;">&nbspKritično majhne kategorije (n < 11)</p>')
+            paste('<p style="background-color:#FFC000;">Kritično majhne kategorije (n ≤ 10)</p>')
           }
         })
         
         output[[paste0("input_recommend_messages_", clean_names()[[i]])]] <- renderText({
           if(length(row_highlight_small) != 0 && length(row_highlight_small_sample) != 0){
-            paste('<p style="background-color:#FFECAF;">&nbspMajhne kategorije (n < 31) in populacijske margine (< 5%)</p>')
+            paste('<p style="background-color:#FFECAF;">Majhne kategorije (n ≤ 30) in populacijske margine (< 5%)</p>')
           } else if(length(row_highlight_small) != 0 && length(row_highlight_small_sample) == 0){
-            paste('<p style="background-color:#FFECAF;">&nbspMajhne populacijske margine (< 5%)</p>')
+            paste('<p style="background-color:#FFECAF;">Majhne populacijske margine (< 5%)</p>')
           } else if(length(row_highlight_small) == 0 && length(row_highlight_small_sample) != 0){
-            paste('<p style="background-color:#FFECAF;">&nbspMajhne kategorije (n < 31)</p>')
+            paste('<p style="background-color:#FFECAF;">Majhne kategorije (n ≤ 30)</p>')
+          }
+        })
+        
+        output[[paste0("input_sum_message_", clean_names()[[i]])]] <- renderText({
+          s <- df[n,n_col]
+          if((s != 1 && s != 100) && s != 0){
+            paste('<br/><strong>Opomba:</strong></br>
+                  <p style="background-color:#FFFFC1;">Vsota vnesenih margin ni 100%</br><small>(margine bodo preračunane, da bo vsota 100%)</small></p>')
           }
         })
       }
@@ -705,6 +719,7 @@ shinyServer(function(input, output, session){
     if(input$package == "anesrake"){
       shinyjs::enable(id = "cut_weights_iterative")
     } else {
+      updateCheckboxInput(inputId = "cut_weights_iterative", value = FALSE)
       shinyjs::disable(id = "cut_weights_iterative")
     }
   })
@@ -814,12 +829,15 @@ shinyServer(function(input, output, session){
          paste("<b>Rezanje uteži po koncu iteracij:</b>", cut_weights_text()$text_cut, "</br></br>"),
          paste("<b>Uteževalne spremenljivke:</b>", paste0(summ$raking.variables, collapse = ", "), "</br></br>"),
          paste("<b>Privzete uteži:</b>", summ$base.weights, "</br></br>"),
-         paste0("<b>Vzorčni učinek (design effect): </b>", round(deff, 6), ". Porast vzorčne variance zaradi uteževanja: ", round((deff-1)*100,2), "%."))
+         paste0("<b>Vzorčni učinek (design effect): </b>", round(deff, 5), ". Porast vzorčne variance zaradi uteževanja: ", round((deff-1)*100,2), "% ",
+                '(<a href="https://www.proquest.com/openview/8196b6985339ec9885193d56a5c44ca0/1?pq-origsite=gscholar&cbl=105444" target="_blank">Kish (1992)</a>;
+                <a href="https://www.hzu.edu.in/uploads/2020/9/Applied%20Survey%20Data%20Analysis%20(Chapman%20&%20Hall%20CRC%20Statistics%20in%20the%20Social%20and%20Behavioral%20Scie).pdf" target="_blank">Heeringa in drugi (2010)</a>, str. 44-45).'))
   })
 
   output$weights_table <- renderDT({
-    datatable(data = data.frame(caseid = weighting_output()$caseid,
-                                weights = weighting_output()$weightvec),
+    datatable(data = setNames(data.frame(caseid = weighting_output()$caseid,
+                                         weights = weighting_output()$weightvec),
+                              nm = c(weighting_output()$caseid_name, "weights")),
               rownames= FALSE,
               class = "compact row-border hover",
               options = list(dom = "t",
@@ -909,7 +927,7 @@ shinyServer(function(input, output, session){
               xlim = c(0, max(vec) + 1),
               breaks = seq(min(vec), max(vec), by = ((max(vec) - min(vec))/(length(vec))))),
          xlab = "Uteži", ylab = "Frekvence",
-         main = "Porazdelitev uteži",)
+         main = "Porazdelitev uteži")
   })
   
   # Show weights' descriptive statistics
@@ -940,7 +958,7 @@ shinyServer(function(input, output, session){
   
   output$download_weights <- downloadHandler(
     filename = function() {
-      paste0("Utezi_", paste0(weighting_output()$varsused, collapse = "_"), ".", input$select_weights_file_type)
+      paste0("Utezi_", tools::file_path_sans_ext(input$upload_raw_data$name), "_", paste0(weighting_output()$varsused, collapse = "_"), ".", input$select_weights_file_type)
     },
     content = function(file) {
       download_weights(weights_object = weighting_output(),
@@ -970,13 +988,14 @@ shinyServer(function(input, output, session){
       download_weighting_diagnostic(weights_object = weighting_output(),
                                     file_name = file,
                                     cut_text = cut_weights_text()$text_cut,
-                                    iter_cut_text = cut_weights_text()$text_cut_iter)
+                                    iter_cut_text = cut_weights_text()$text_cut_iter,
+                                    is_online_server = is_online_server)
     })
   
   # Download survey design object
   output$download_survey_design <- downloadHandler(
     filename = function() {
-      paste0("survey_design_", paste0(weighting_output()$varsused, collapse = "_"), ".RData")
+      paste0("svydesign_", tools::file_path_sans_ext(input$upload_raw_data$name), "_", paste0(weighting_output()$varsused, collapse = "_"), ".RData")
     },
     content = function(file) {
       survey_design_raking <- weighting_output()$survey_design
@@ -1003,7 +1022,10 @@ shinyServer(function(input, output, session){
   # enable survey SE calculation when svydesign is present
   observe({
     if(weighting_output()$package == "survey"){
-      shinyjs::enable("se_calculation")
+      shinyjs::enable(id = "se_calculation")
+    } else {
+      updateRadioButtons(inputId = "se_calculation", selected = "taylor_se")
+      shinyjs::disable(id = "se_calculation")
     }
   })
   
@@ -1037,7 +1059,7 @@ shinyServer(function(input, output, session){
         
         if(!isTRUE(all.equal(mean(weights, na.rm = TRUE), 1))){
           # TODO dodaj postratifikacisjke uteži imajo načeloma povprečje 1
-          validate("Povprečje uteži ni enako 1 (uteži niso normalizirane). Za analize bodo uteži reskalirane, da bo povprečje enako 1.")
+          validate("Povprečje uteži ni enako 1 (uteži niso normirane). Za analize bodo uteži normirane, da bo povprečje enako 1.")
         }
         
       } else if(is.null(input$analyses_weight_variable) && input$select_which_weights == "included_weights"){
@@ -1162,7 +1184,7 @@ shinyServer(function(input, output, session){
     
     tagList(
       p(HTML("<small>Signifikanca: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001</small>")),
-      if(warning_indicator) p(HTML("<small>! Število enot v celici je premajhno za zanesljivo oceno p vrednosti.</small>")),
+      if(warning_indicator) p(HTML("<small>! Število enot v celici je premajhno za zanesljivo oceno p vrednosti (np ≤ 5 ali n(1-p) ≤ 5).</small>")),
       
       lapply(seq_len(length(weighted_factor_tables)), function(i){
         tbl <- weighted_factor_tables[[i]][["calculated_table"]]
@@ -1233,4 +1255,4 @@ shinyServer(function(input, output, session){
         file = file,
         warning_indicator = any(unlist(lapply(weighted_factor_tables, "[[", "warning_indicator")), na.rm = TRUE))
     })
-})
+}

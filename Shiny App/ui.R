@@ -8,9 +8,10 @@ suppressPackageStartupMessages({
   library(rhandsontable)
 })
 
-options(spinner.type = 8)
+options(spinner.type = 8,
+        warn = -1)
 
-shinyUI(
+ui <- 
   navbarPage(title = "SurveyWeightingGUI", id = "nav_menu", collapsible = TRUE,
              shinyjs::useShinyjs(),
              includeCSS("www/style.css"),
@@ -29,6 +30,7 @@ shinyUI(
                                   color: white;
                                   min-height: 20px;
                                   padding: 19px;
+                                  padding-bottom: 80px;
                                   margin-bottom: 20px;
                                   border-radius: 4px;
                                   margin-left: 16px;
@@ -66,37 +68,57 @@ shinyUI(
                                               style = "background-color: white;
                                                        border-color: white;
                                                        color: #2e6da4;
-                                                       font-size: 18px;"),
-                                 br(),
-                                 br(),
-                                 br(),
-                                 br()),
+                                                       font-size: 18px;
+                                                       font-weight: bold;")),
                           column(3))),
                       
                       fluidRow(
-                        column(4, offset = 4, align = "center",
-                               h3(strong("3 koraki uteževanja z aplikacijo")),
-                               hr())),
-                      fluidRow(
                         column(12, align = "center",
-                               h4(HTML("<center><b>1.</b></br>Naloži podatke</center>")),
+                               h3(strong("Štirje koraki uteževanja z aplikacijo")),
                                br(),
-                               h4(HTML("<center><b>2.</b></br>Izberi uteževalne spremenljivke in vnesi populacijske (ciljne) deleže</center>"))),
-                        br(),
-                        column(4, offset = 4,
-                               h4(HTML("<center><b>3.</b></br>Izvedi uteževanje</center>")),
-                               p("Po izvedbi uteževanja prenesete datoteko z utežmi in jih uporabite v analizi podatkov v svojem najljubšem programu za statistično analizo.
-                                    Dodatno lahko že v sami aplikaciji preverite spremembo povprečij in deležev spremenljivk po uteževanju.",
-                                 class = "banner-text"),
-                        )),
+                               br())),
+                      fluidRow(
+                        column(3,
+                               HTML('<div class="landing-box">
+                                      <span class="landing-number">1</span>
+                                      <p>Naloži podatke</p>
+                                    </div>')),
+                        column(3,
+                               HTML('<div class="landing-box">
+                                      <span class="landing-number">2</span>
+                                      <p>Izberi uteževalne spremenljivke</p>
+                                    </div>')),
+                        column(3,
+                               HTML('<div class="landing-box">
+                                      <span class="landing-number">3</span>
+                                      <p>Vnesi populacijske (ciljne) deleže</p>
+                                    </div>')),
+                        column(3,
+                               HTML('<div class="landing-box">
+                                      <span class="landing-number">4</span>
+                                      <p>Izvedi uteževanje & evalviraj uteži</p>
+                                    </div>'))),
+                      # fluidRow(
+                      #   column(12, align = "center",
+                      #          h4(HTML("<center><b>1.</b></br>Naloži podatke</center>")),
+                      #          br(),
+                      #          h4(HTML("<center><b>2.</b></br>Izberi uteževalne spremenljivke in vnesi populacijske (ciljne) deleže</center>")),
+                      #          br(),
+                      #          h4(HTML("<center><b>3.</b></br>Izvedi uteževanje</center>")),
+                      #          br(),
+                      #          h4(HTML("<center><b>4.</b></br>Evalviraj uteži</center>")),
+                      #          br())),
                       fluidRow(align = "center",
-                               br(),
-                               hr(),
-                               p(HTML('&copy; 2023 Luka Štrlekar, Vasja Vehovar &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
-                                       <a href="mailto:ls9889@student.uni-lj.si">Kontakt <i class="fa fa-envelope"></i></a> &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
-                                       <a href="https://github.com/lukastrlekar/SurveyWeightingGUI" target="_blank" rel="noopener noreferrer">
-                                              Izvorna koda <i class="fa fa-github"></i></a>')))),
-  
+                               HTML('&copy; 2023-2024 Luka Štrlekar, Vasja Vehovar
+                                      &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+                                      <a href="mailto:ls9889@student.uni-lj.si"><i class="fa fa-envelope"></i>&nbsp&nbspKontakt</a>
+                                      &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
+                                      <a href="https://github.com/lukastrlekar/SurveyWeightingGUI" target="_blank" rel="noopener noreferrer">
+                                      <i class="fa fa-github"></i>&nbsp&nbspIzvorna koda</a>'),
+                               style = "border-top: 1px solid #eee;
+                                        padding: 10px;
+                                        margin-top: 30px;")
+             ),
              # Data input tab -------------------------------------------------------
              tabPanel(title = "Nalaganje podatkov", value = "upload_data_tab", icon = shiny::icon("upload"),
                       column(4,
@@ -155,7 +177,7 @@ shinyUI(
              
              # Select weighting variables tab ------------------------------------------------------
              tabPanel(title = "Izbira spremenljivk", value = "select_variables_tab", icon = shiny::icon("hand-pointer"),
-                      column(12, h4(strong("Izbira spremenljivk za uteževanje")),
+                      column(12, h4(HTML("<strong>Izbira spremenljivk za uteževanje <small>(uteževalne oziroma kontrolne spremenljivke)</small></strong>")),
                              br()),
                       column(9, 
                              wellPanel(fluidRow(
@@ -237,7 +259,7 @@ shinyUI(
                                                         v stolpec <i>Vnos populacijskih margin (%)</i> vnesite populacijske (ciljne) margine v odstotkih. V stolpcu <i>Populacijski (ciljni) %</i>
                                                         se samodejno preračunajo deleži, ki bodo uporabljeni v uteževanju (glede na morebitne manjkajoče vrednosti in za
                                                         zagotovilo, da bo vsota vedno 100%). Ko končate z vnosom, Excel datoteko shranite in jo naložite v aplikacijo v zavihku <i>Uteževanje</i>.")),
-                                                p(HTML('<small>Opombe: Manjkajoče vrednosti (<i>Missing</i>) se obravnavajo samodejno, glede na postopek, ki ga uporablja
+                                                p(HTML('<small>Opombe: Morebitne manjkajoče vrednosti (<i>Missing</i>) na uteževalnih (kontrolnih) spremenljivkah v vzorčnih in/ali populacijskih (ciljnih) marginah se obravnavajo samodejno, glede na postopek, ki ga uporablja
                                                        <a href="https://casovnice.cdi.si/uploadi/editor/doc/1492779173DOC1_R7_weights.pdf" target="_blank">Evropska družboslovna raziskava</a>.
                                                        Morebitna opozorila in priporočila o združevanju kategorij so povzeta iz splošnih pripročil za tovrstno uteževanje 
                                                        (glej npr. <a href="https://www.surveypractice.org/article/2953-practical-considerations-in-raking-survey-data" target="_blank">Battaglia in drugi (2009)</a>,
@@ -249,7 +271,7 @@ shinyUI(
                                                 disabled(
                                                   downloadButton("download_excel_input", 
                                                                  label = HTML("&nbspPrenesi datoteko za vnos margin"), 
-                                                                 icon = shiny::icon("file-excel fa-solid", style = "color: white;"),
+                                                                 icon = shiny::icon("file-excel", class = "fa-solid", style = "color: white;"),
                                                                  class = "btn-primary")))),
                                        column(2, 
                                               actionButton("jump_to_weighting_tab", label = "Naprej >", class = "btn-next", style = "position: fixed"))),
@@ -263,7 +285,7 @@ shinyUI(
                                                       V stolpcu <i>Populacijski (ciljni) %</i>
                                                       se samodejno preračunajo deleži, ki bodo uporabljeni v uteževanju (glede na morebitne manjkajoče vrednosti in za
                                                       zagotovilo, da bo vsota vedno 100%). Ko končate z vnosom, lahko izvedete uteževanje v zavihku <i>Uteževanje</i>.")),
-                                                p(HTML('<small>Opombe: Manjkajoče vrednosti (<i>Missing</i>) se obravnavajo samodejno, glede na postopek, ki ga uporablja
+                                                p(HTML('<small>Opombe: Morebitne manjkajoče vrednosti (<i>Missing</i>) na uteževalnih (kontrolnih) spremenljivkah v vzorčnih in/ali populacijskih (ciljnih) marginah se obravnavajo samodejno, glede na postopek, ki ga uporablja
                                                        <a href="https://casovnice.cdi.si/uploadi/editor/doc/1492779173DOC1_R7_weights.pdf" target="_blank">Evropska družboslovna raziskava</a>.
                                                        Morebitna opozorila in priporočila o združevanju kategorij so povzeta iz splošnih pripročil za tovrstno uteževanje 
                                                        (glej npr. <a href="https://www.surveypractice.org/article/2953-practical-considerations-in-raking-survey-data" target="_blank">Battaglia in drugi (2009)</a>,
@@ -308,7 +330,7 @@ shinyUI(
                                hidden(p(HTML("Naložite podatke v zavihku <i>Nalaganje podatkov</i>."),
                                         id = "message_no_file",
                                         style = "color:red;")),
-                               hidden(p("Oblika datoteke se ne ujema s predvideno. Naložite pravo Excel datoteko.",
+                               hidden(p(HTML("Oblika datoteke se ne ujema s predvideno. Naložite Excel datoteko, ki ste jo prenesli v zavihku <i>Vnos populacijskih margin</i>."),
                                         id = "message_wrong_file_structure",
                                         style = "color:red;")),
                                hidden(p("Spremenljivke v podani datoteki ne obstajajo v naloženih podatkih.",
@@ -340,31 +362,31 @@ shinyUI(
                                  column(6,
                                         checkboxInput("case_id_selection",
                                                       label = HTML("Izberi enolični identifikator enot (<i>case ID</i>)")),
-                                       conditionalPanel(condition = "input.case_id_selection == 1",
-                                                        pickerInput(
-                                                          inputId = "case_id_variable",
-                                                          label = HTML("<small>Izberi spremenljivko, ki predstavlja enolični identifikator enot:</small>"),
-                                                          choices = NULL,
-                                                          options = pickerOptions(
-                                                            liveSearch = TRUE,
-                                                            maxOptions = 1),
-                                                          multiple = TRUE))),
-                                column(6,
-                                       checkboxInput("base_weights_selection",
-                                                     label = "Upoštevaj tudi privzete uteži"),
-                                       conditionalPanel(condition = "input.base_weights_selection == 1",
-                                                        p(HTML("<small>Izbirni vnos, če so na voljo vzorčne uteži, stratifikacijski popravek ali druga informacija o verjetnosti vzorčenja, ki jo je treba upoštevati pred izvedbo uteževanja.</small>")),
-                                                        pickerInput(inputId = "base_weights_variable",
-                                                                    label = HTML('<small>Izberi spremenljivko, ki predstavlja uteži
-                                                                                  <span style="font-weight:normal">(pred uteževanjem bodo slednje uteži reskalirane)</span>:</small>'),
-                                                                    choices = NULL,
-                                                                    options = pickerOptions(
-                                                                      liveSearch = TRUE,
-                                                                      maxOptions = 1),
-                                                                    multiple = TRUE)))),
-                              
+                                        conditionalPanel(condition = "input.case_id_selection == 1",
+                                                         pickerInput(
+                                                           inputId = "case_id_variable",
+                                                           label = HTML("<small>Izberi spremenljivko, ki predstavlja enolični identifikator enot:</small>"),
+                                                           choices = NULL,
+                                                           options = pickerOptions(
+                                                             liveSearch = TRUE,
+                                                             maxOptions = 1),
+                                                           multiple = TRUE))),
+                                 column(6,
+                                        checkboxInput("base_weights_selection",
+                                                      label = "Upoštevaj tudi privzete uteži"),
+                                        conditionalPanel(condition = "input.base_weights_selection == 1",
+                                                         p(HTML("<small>Izbirni vnos, če so na voljo vzorčne uteži, stratifikacijski popravek ali druga informacija o verjetnosti vzorčenja, ki jo je treba upoštevati pred izvedbo uteževanja.</small>")),
+                                                         pickerInput(inputId = "base_weights_variable",
+                                                                     label = HTML('<small>Izberi spremenljivko, ki predstavlja uteži
+                                                                                  <span style="font-weight:normal">(pred uteževanjem bodo slednje uteži normirane)</span>:</small>'),
+                                                                     choices = NULL,
+                                                                     options = pickerOptions(
+                                                                       liveSearch = TRUE,
+                                                                       maxOptions = 1),
+                                                                     multiple = TRUE)))),
+                               
                                checkboxInput("cut_weights_iterative",
-                                             label = "Reži uteži pri vsaki iteraciji procedure"),
+                                             label = "Reži uteži pri vsaki iteraciji procedure raking"),
                                conditionalPanel(condition = "input.cut_weights_iterative == 1",
                                                 fluidRow(
                                                   column(4,
@@ -375,10 +397,10 @@ shinyUI(
                                                          p(HTML(
                                                            "<small>Priporočena možnost, saj je z vidika optimizacije variance optimalna.
                                                             V redkih primerih lahko privede do neveljavnih (skoraj ničelnih) uteži (<0.01).
-                                                            Takrat se priporoča povečanje max dovoljene vrednosti uteži ali rezanje uteži na koncu procedure raking.</small>"))))),
+                                                            Takrat se priporoča povečanje maks. dovoljene vrednosti uteži ali rezanje uteži na koncu procedure raking.</small>"))))),
                                
                                checkboxInput("cut_weights_after",
-                                             label = "Uteži poreži na koncu procedure"),
+                                             label = "Uteži poreži na koncu procedure raking"),
                                conditionalPanel(condition = "input.cut_weights_after == 1",
                                                 fluidRow(
                                                   column(6,
@@ -390,7 +412,7 @@ shinyUI(
                                                                       label = HTML("<small>Maksimalna utež:</small>"),
                                                                       value = 5, min = 1, step = 0.5)),
                                                   column(12,
-                                                         p(HTML("<small>Ker so uteži po rezanju reskalirane, lahko vrednosti porezanih uteži rahlo
+                                                         p(HTML("<small>Ker so uteži po rezanju normirane, lahko vrednosti porezanih uteži rahlo
                                                                        presežejo nastavljeno min in max vrednost.</small>"))))),
                                checkboxInput("convergence_input",
                                              label = "Nastavi kriterij za konvergenco"),
@@ -470,8 +492,8 @@ shinyUI(
                                                                          column(3,
                                                                                 selectInput("delimiter_weights", 
                                                                                             label = HTML("<small>Izberi delimiter:</small>"),
-                                                                                            choices = c("Podpičje (;)" = ";",
-                                                                                                        "Vejica (,)" = ",",
+                                                                                            choices = c("Vejica (,)" = ",",
+                                                                                                        "Podpičje (;)" = ";",
                                                                                                         "Tabulator (tab)" = "\t",
                                                                                                         "Presledek ( )" = " ",
                                                                                                         "Pipa (|)" = "|")))),
@@ -494,11 +516,11 @@ shinyUI(
                                                                        fluidRow(
                                                                          column(6,
                                                                                 p(strong(HTML("Prenos <tt>svydesign</tt> R objekta iz paketa <tt>survey</tt>"))),
-                                                                                p(HTML("<small>Prenesite <tt>svydesign</tt> objekt za nadaljne analize v R s paketom <tt>survey</tt> V objektu so shranjene informacije
-                                                               o uteževanju, ki omogočajo pravilen (natančen) izračun standardnih napak, ne zgolj aproksimativen (npr. s Taylorjevo linearizacijo).</small>")),
+                                                                                p(HTML("<small>Prenesite <tt>svydesign</tt> objekt za nadaljne analize v R s paketom <tt>survey</tt>. V objektu so shranjene informacije
+                                                                                        o uteževanju, ki omogočajo pravilen (natančen) izračun standardnih napak, ne zgolj aproksimativen (npr. s Taylorjevo linearizacijo).</small>")),
                                                                                 br(),
                                                                                 downloadButton("download_survey_design",
-                                                                                               label = HTML("&nbspPrenesi svydesign objekt"),
+                                                                                               label = HTML("&nbspPrenesi <tt>svydesign</tt> R objekt"),
                                                                                                icon = shiny::icon("file-code"),
                                                                                                class = "btn-secondary",
                                                                                                style = "width: 100%;"))))
@@ -524,9 +546,9 @@ shinyUI(
                                                            choices = NULL,
                                                            options = pickerOptions(
                                                              liveSearch = TRUE,
-                                                                    maxOptions = 1),
-                                                                  multiple = TRUE,
-                                                                  width = "60%")),
+                                                             maxOptions = 1),
+                                                           multiple = TRUE,
+                                                           width = "60%")),
                                         htmlOutput("weights_message"),
                                         br(),
                                         checkboxInput("adjust_p_values",
@@ -541,7 +563,7 @@ shinyUI(
                                                                                     "Benjamini & Hochberg (BH/FDR)" = "BH",
                                                                                     "Benjamini & Yekutieli (BY)" = "BY"),
                                                                      selected = 1, multiple = FALSE, width = "50%"))
-                                        ),
+                                 ),
                                  column(7,
                                         disabled(radioButtons("se_calculation",
                                                               label = "Izberi način izračuna standardne napake (SE):",
@@ -557,51 +579,51 @@ shinyUI(
                       
                       column(12,
                              div(class = "first-tab",
-                             tabsetPanel(tabPanel(title = "Izračun opisnih statistik",
-                                                  br(),
-                                                  column(5,
-                                                         pickerInput(
-                                                           inputId = "numeric_variables",
-                                                           label = HTML('Izberi številske spremenljivke:<br/><span style="font-weight:normal"><small>(intervalna ali razmernostna merska lestvica)</small></span>'),
-                                                           choices = NULL,
-                                                           multiple = TRUE,
-                                                           options = pickerOptions(actionsBox = TRUE,
-                                                                                   liveSearch = TRUE),
-                                                           width = "100%")),
-                                                  column(1,
-                                                         div(style = "top: 45px; position:relative;",
-                                                             actionButton("run_numeric_variables",
-                                                                          label = "Izračunaj",
-                                                                          class = "btn-primary"))),
-                                                  column(6,
-                                                         div(style = "top: 45px; position:relative;",
-                                                             uiOutput("download_numeric_analyses_ui"))),
-                                                  column(12,
-                                                         htmlOutput("message_numeric"),
-                                                         shinycssloaders::withSpinner(
-                                                           uiOutput("analyses_numeric_tables")))),
-                                         
-                                         tabPanel(title = "Izračun frekvenc",
-                                                  br(),
-                                                  column(5,
-                                                         pickerInput(
-                                                           inputId = "factor_variables",
-                                                           label = HTML('Izberi spremenljivke:<br/><span style="font-weight:normal"><small>(nominalna, ordinalna, intervalna ali razmernostna merska lestvica)</small></span>'),
-                                                           choices = NULL,
-                                                           multiple = TRUE,
-                                                           options = pickerOptions(actionsBox = TRUE,
-                                                                                   liveSearch = TRUE),
-                                                           width = "100%")),
-                                                  column(1,
-                                                         div(style = "top: 45px; position:relative;",
-                                                             actionButton("run_factor_variables",
-                                                                          label = "Izračunaj",
-                                                                          class = "btn-primary"))),
-                                                  column(6,
-                                                         div(style = "top: 45px; position:relative;",
-                                                             uiOutput("download_factor_analyses_ui"))),
-                                                  column(12,
-                                                         htmlOutput("message_factor"),
-                                                         shinycssloaders::withSpinner(
-                                                           uiOutput("analyses_factor_tables"))))
-                             ))))))
+                                 tabsetPanel(tabPanel(title = "Izračun opisnih statistik",
+                                                      br(),
+                                                      column(5,
+                                                             pickerInput(
+                                                               inputId = "numeric_variables",
+                                                               label = HTML('Izberi številske spremenljivke:<br/><span style="font-weight:normal"><small>(intervalna ali razmernostna merska lestvica)</small></span>'),
+                                                               choices = NULL,
+                                                               multiple = TRUE,
+                                                               options = pickerOptions(actionsBox = TRUE,
+                                                                                       liveSearch = TRUE),
+                                                               width = "100%")),
+                                                      column(1,
+                                                             div(style = "top: 45px; position:relative;",
+                                                                 actionButton("run_numeric_variables",
+                                                                              label = "Izračunaj",
+                                                                              class = "btn-primary"))),
+                                                      column(6,
+                                                             div(style = "top: 45px; position:relative;",
+                                                                 uiOutput("download_numeric_analyses_ui"))),
+                                                      column(12,
+                                                             htmlOutput("message_numeric"),
+                                                             shinycssloaders::withSpinner(
+                                                               uiOutput("analyses_numeric_tables")))),
+                                             
+                                             tabPanel(title = "Izračun frekvenc",
+                                                      br(),
+                                                      column(5,
+                                                             pickerInput(
+                                                               inputId = "factor_variables",
+                                                               label = HTML('Izberi spremenljivke:<br/><span style="font-weight:normal"><small>(nominalna, ordinalna, intervalna ali razmernostna merska lestvica)</small></span>'),
+                                                               choices = NULL,
+                                                               multiple = TRUE,
+                                                               options = pickerOptions(actionsBox = TRUE,
+                                                                                       liveSearch = TRUE),
+                                                               width = "100%")),
+                                                      column(1,
+                                                             div(style = "top: 45px; position:relative;",
+                                                                 actionButton("run_factor_variables",
+                                                                              label = "Izračunaj",
+                                                                              class = "btn-primary"))),
+                                                      column(6,
+                                                             div(style = "top: 45px; position:relative;",
+                                                                 uiOutput("download_factor_analyses_ui"))),
+                                                      column(12,
+                                                             htmlOutput("message_factor"),
+                                                             shinycssloaders::withSpinner(
+                                                               uiOutput("analyses_factor_tables"))))
+                                 )))))

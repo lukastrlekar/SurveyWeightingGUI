@@ -1,3 +1,8 @@
+# TODO
+# user_na_to_na ni treba povsod
+# za survey rakign če je error da se izpiše kaj informativnega in konvergenca
+
+
 # Trim weights after raking iterative procedure
 ## Weights are trimmed at user-specified values, and then readjusted so that the
 ## average of weights again equals 1.
@@ -9,15 +14,10 @@ trim_weights <- function(weights, lower = -Inf, upper = Inf){
   return(weights)
 }
 
-# TODO
-# design effect preveri izračun in navedi vir
-# za survey rakign če je error da se izpiše kaj informativnega in konvergenca
-
 # Kish (1992) estimator for design effect
 design_effect <- function(weights) {
-  weights <- weights[!is.na(weights)] * sum(!is.na(weights))/sum(weights[!is.na(weights)])
-  deff <- sum(weights^2)/sum(weights)
-  return(deff)
+  n <- length(weights)
+  (n * sum(weights^2))/sum(weights)^2
 }
 
 weightassess <- function(inputter, dataframe, weightvec, prevec = NULL) {
@@ -42,7 +42,7 @@ weightassess <- function(inputter, dataframe, weightvec, prevec = NULL) {
     chpct <- newpct - origpct
     rdisc <- target - newpct
     nout <- cbind(orign, origpct, newn, newpct, target, chpct, rdisc)
-    nout2 <- rbind.data.frame(nout, Skupaj = apply(nout, 2, function(x) sum(abs(x), na.rm = TRUE)))
+    nout2 <- rbind.data.frame(nout, Skupaj = apply(nout, 2, function(x) sum(x, na.rm = TRUE)))
     nout2 <- cbind.data.frame(rownames(nout2), nout2)
     colnames(nout2) <- c(i,
                          paste(prx, "N"),
@@ -154,9 +154,9 @@ perform_weighting <- function(orig_data = NULL,
     popul_margins[[i]] <- temp_vec/100
 
     if(all(levels(selected_data[[names(popul_margins)[[i]]]]) %in% names(temp_vec)) != TRUE){
-      validate("Population and sample levels must match. Variable categories ",
+      validate("Populacijske in vzorčne kategorije se morajo ujemati. Kategorije ",
                paste0(levels(selected_data[[names(popul_margins)[[i]]]])[which(levels(selected_data[[names(popul_margins)[[i]]]]) %in% names(temp_vec) == FALSE)], collapse = ", "),
-               "are observed in sample but not in population margins.")
+               "so prisotne v vzorčnih, ne pa tudi v populacijskih marginah.")
     }
   }
   
@@ -264,7 +264,8 @@ download_weights <- function(weights_object = NULL,
 download_weighting_diagnostic <- function(weights_object,
                                           file_name,
                                           cut_text,
-                                          iter_cut_text){
+                                          iter_cut_text,
+                                          is_online_server){
   
   diagnostic <- summary(weights_object)
   vec <- weights_object$weightvec
@@ -310,13 +311,17 @@ download_weighting_diagnostic <- function(weights_object,
                cols = 4:9,
                widths = 8)
   
-  # NOT ABLE TO MAKE IT WORK ON SHINY SERVER (WORKS LOCALLY THOUGH)
-  # my_plot <- hist(x = vec,
-  #                 xlim = c(0, max(vec) + 1),
-  #                 breaks = seq(min(vec), max(vec), by = ((max(vec) - min(vec))/(length(vec)))))
-  # 
-  # insertPlot(wb = wb,
-  #            sheet = 1, startRow = 6, startCol = 4)
+  # histogram of weights - NOT ABLE TO MAKE IT WORK ON SHINY SERVER (WORKS LOCALLY THOUGH)
+  if(!is_online_server){
+    my_plot <- hist(x = vec,
+                    xlim = c(0, max(vec) + 1),
+                    breaks = seq(min(vec), max(vec), by = ((max(vec) - min(vec))/(length(vec)))),
+                    xlab = "Uteži", ylab = "Frekvence",
+                    main = "Porazdelitev uteži")
+    
+    insertPlot(wb = wb,
+               sheet = 1, startRow = 6, startCol = 4)
+  }
   
   all_raking_variables <- weights_object$varsused
   
@@ -336,6 +341,18 @@ download_weighting_diagnostic <- function(weights_object,
                  sheet = sheet_name,
                  cols = 1:9,
                  widths = "auto")
+    
+    addStyle(wb = wb,
+             sheet = sheet_name,
+             style = createStyle(numFmt = "0"),
+             rows = 2:(nrow(diagnostic[[all_raking_variables[i]]])+1), cols = c(2,4),
+             gridExpand = TRUE, stack = TRUE)
+    
+    addStyle(wb = wb,
+             sheet = sheet_name,
+             style = createStyle(numFmt = "0.00"),
+             rows = 2:(nrow(diagnostic[[all_raking_variables[i]]])+1), cols = c(3,5:7),
+             gridExpand = TRUE, stack = TRUE)
   }
 
   saveWorkbook(wb = wb, file = file_name, overwrite = TRUE)

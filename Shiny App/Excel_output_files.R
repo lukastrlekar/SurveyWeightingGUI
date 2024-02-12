@@ -3,7 +3,7 @@ one_dim_excel <- function(orig_data, one_dim_raking_var, wb, drop_zero, drop_zer
   temp_var <- one_dim_raking_var
   one_dim_raking_var <- substr(one_dim_raking_var, 1, 31) # Max length is 31 characters for Excel sheet name
   
-  temp_df <- data.frame(table(clean_data(orig_data[[temp_var]]), useNA = "no"))
+  temp_df <- as.data.frame.table(table(clean_data(orig_data[[temp_var]]), useNA = "no"), stringsAsFactors = FALSE)
   temp_df$prop <- (temp_df$Freq/sum(temp_df$Freq))*100
   temp_df$popul <- rep(0, nrow(temp_df))
   temp_df$input <- rep(0, nrow(temp_df))
@@ -99,18 +99,7 @@ one_dim_excel <- function(orig_data, one_dim_raking_var, wb, drop_zero, drop_zer
                                textDecoration = "bold"), 
            rows = not_miss_rows, cols = n_col, stack = TRUE)
   
-  writeFormula(wb = wb,
-               sheet = one_dim_raking_var,
-               x = paste0('IF(E',n_row,'=0,"",IF(AND(E',n_row,'<>100,E',n_row,'<>1),"Vsota ni 100%",""))'),
-               startCol = n_col+1, startRow = n_row)
-
-  conditionalFormatting(wb = wb, sheet = one_dim_raking_var,
-                        cols = n_col+1, rows = n_row,
-                        type = "expression", rule = '<>""',
-                        style = createStyle(bgFill = "#FFFF65"))
-  
   setColWidths(wb = wb, sheet = one_dim_raking_var, cols = 1:n_col, widths = "auto")
-  
   
   conditionalFormatting(wb = wb, sheet = one_dim_raking_var,
                         cols = 2, rows = not_miss_rows,
@@ -152,65 +141,84 @@ one_dim_excel <- function(orig_data, one_dim_raking_var, wb, drop_zero, drop_zer
   
   # Diagnostic text - critical errors
   writeFormula(wb = wb, sheet = one_dim_raking_var,
-               x = 'IF(OR(H4<>"",H5<>""),"Kritična opozorila (procedura ne bo delovala):","")',
-               xy = c(n_col+3, 3))
+               x = 'IF(OR(G4<>"",G5<>""),"Kritična opozorila (uteževanje ne bo delovalo):","")',
+               xy = c(n_col+2, 3))
   
   writeFormula(wb = wb,
                sheet = one_dim_raking_var,
                x = paste0('IF(COUNTIF(F2:F',n_row-1,',"*_pop0"),"Ničelna populacijska in neničelna vzorčna margina","")'),
-               startCol = n_col+3, startRow = 4)
+               startCol = n_col+2, startRow = 4)
   
   writeFormula(wb = wb,
                sheet = one_dim_raking_var,
                x = paste0('IF(COUNTIF(F2:F',n_row-1,',"*_vzorec0"),"Neničelna populacijska in ničelna vzorčna margina","")'),
-               startCol = n_col+3, startRow = 5)
+               startCol = n_col+2, startRow = 5)
   
   conditionalFormatting(wb = wb, sheet = one_dim_raking_var,
-                        cols = n_col+3, rows = 4:5,
+                        cols = n_col+2, rows = 4:5,
                         type = "expression", rule = '<>""',
                         style = createStyle(bgFill = "#FF4B4B"))
   
   # Diagnostic text - recommendations
   writeFormula(wb = wb, sheet = one_dim_raking_var,
-               x = 'IF(OR(H8<>"",H9<>""),"Priporočila (združevanje kategorij):","")',
-               xy = c(n_col+3, 7))
+               x = 'IF(OR(G8<>"",G9<>""),"Priporočila (priporočena je priključitev obarvanih kategorij k vsebinsko podobni kategoriji):","")',
+               xy = c(n_col+2, 7))
   
   writeFormula(wb = wb,
                sheet = one_dim_raking_var,
-               x = paste0('IF(AND(COUNTIF(F2:F',n_row-1,',"vzorec1-4_*"),COUNTIF(F2:F',n_row-1,',"*_vzorec1-4")),"Kritično majhne kategorije (n < 11) in populacijske margine (< 1%)",IF(COUNTIF(F2:F',n_row-1,',"*_vzorec1-4"),"Kritično majhne populacijske margine (< 1%)",IF(COUNTIF(F2:F',n_row-1,',"vzorec1-4_*"),"Kritično majhne kategorije (n < 11)","")))'),
-               startCol = n_col+3, startRow = 8)
+               x = paste0('IF(AND(COUNTIF(F2:F',n_row-1,',"vzorec1-4_*"),COUNTIF(F2:F',n_row-1,',"*_vzorec1-4")),"Kritično majhne kategorije (n ≤ 10) in populacijske margine (< 1%)",IF(COUNTIF(F2:F',n_row-1,',"*_vzorec1-4"),"Kritično majhne populacijske margine (< 1%)",IF(COUNTIF(F2:F',n_row-1,',"vzorec1-4_*"),"Kritično majhne kategorije (n ≤ 10)","")))'),
+               startCol = n_col+2, startRow = 8)
   
   writeFormula(wb = wb,
                sheet = one_dim_raking_var,
-               x = paste0('IF(AND(COUNTIF(F2:F',n_row-1,',"vzorec5-9_*"),COUNTIF(F2:F',n_row-1,',"*_vzorec5-9")),"Majhne kategorije (n < 31) in populacijske margine (< 5%)",IF(COUNTIF(F2:F',n_row-1,',"*_vzorec5-9"),"Majhne populacijske margine (< 5%)",IF(COUNTIF(F2:F',n_row-1,',"vzorec5-9_*"),"Majhne kategorije (n < 31)","")))'),
-               startCol = n_col+3, startRow = 9)
+               x = paste0('IF(AND(COUNTIF(F2:F',n_row-1,',"vzorec5-9_*"),COUNTIF(F2:F',n_row-1,',"*_vzorec5-9")),"Majhne kategorije (n ≤ 30) in populacijske margine (< 5%)",IF(COUNTIF(F2:F',n_row-1,',"*_vzorec5-9"),"Majhne populacijske margine (< 5%)",IF(COUNTIF(F2:F',n_row-1,',"vzorec5-9_*"),"Majhne kategorije (n ≤ 30)","")))'),
+               startCol = n_col+2, startRow = 9)
   
   conditionalFormatting(wb = wb, sheet = one_dim_raking_var,
-                        cols = n_col+3, rows = 8,
+                        cols = n_col+2, rows = 8,
                         type = "expression", rule = '<>""',
                         style = createStyle(bgFill = "#FFC000"))
   
   conditionalFormatting(wb = wb, sheet = one_dim_raking_var,
-                        cols = n_col+3, rows = 9,
+                        cols = n_col+2, rows = 9,
                         type = "expression", rule = '<>""',
                         style = createStyle(bgFill = "#FFECAF"))
   
+  writeFormula(wb = wb, sheet = one_dim_raking_var,
+               x = 'IF(G12<>"","Opomba:","")',
+               xy = c(n_col+2, 11))
+  
+  writeFormula(wb = wb,
+               sheet = one_dim_raking_var,
+               x = paste0('IF(E',n_row,'=0,"",IF(AND(E',n_row,'<>100,E',n_row,'<>1),"Vsota vnesenih margin ni 100% (margine bodo preračunane, da bo vsota 100%)",""))'),
+               startCol = n_col+2, startRow = 12)
+  
+  conditionalFormatting(wb = wb, sheet = one_dim_raking_var,
+                        cols = n_col+2, rows = 12,
+                        type = "expression", rule = '<>""',
+                        style = createStyle(bgFill = "#FFFFC1"))
+  
+  conditionalFormatting(wb = wb, sheet = one_dim_raking_var,
+                        cols = n_col, rows = n_row,
+                        type = "expression", rule = paste0('AND(E',n_row,'<>100,E',n_row,'<>1,E',n_row,'<>0)'),
+                        style = createStyle(bgFill = "#FFFFC1"))
+  
   addStyle(wb = wb, sheet = one_dim_raking_var, 
            style = createStyle(textDecoration = "bold"), 
-           rows = c(3,7), cols = n_col+3, stack = TRUE)
+           rows = c(3,7,11), cols = n_col+2, stack = TRUE)
   
   # Diagnostic text - ok
   writeFormula(wb = wb,
                sheet = one_dim_raking_var,
                x = paste0('IF(AND(COUNTIF(F2:F',n_row-1,',"*_ok"),$E$',n_row,'<>0),"Ustrezen vnos","")'),
-               startCol = n_col+3, startRow = 1)
+               startCol = n_col+2, startRow = 1)
   
   conditionalFormatting(wb = wb, sheet = one_dim_raking_var,
-                        cols = n_col+3, rows = 1,
+                        cols = n_col+2, rows = 1,
                         type = "expression", rule = '<>""',
                         style = createStyle(bgFill = "#92D050"))
   
-  setColWidths(wb = wb, sheet = one_dim_raking_var, cols = c(2, (n_col+1):(n_col+3)), widths = c(10, 12, 4, 48))
+  setColWidths(wb = wb, sheet = one_dim_raking_var, cols = c(2, (n_col+1):(n_col+2)), widths = c(10, 10, 48))
   
   protectWorksheet(wb = wb, sheet = one_dim_raking_var, protect = TRUE, 
                    lockFormattingColumns = FALSE, lockFormattingCells = FALSE)
@@ -237,8 +245,8 @@ two_dim_excel <- function(orig_data, two_dim_raking_vars, wb, drop_zero, drop_ze
   temp_var1 <- two_dim_raking_vars[[1]]
   temp_var2 <- two_dim_raking_vars[[2]]
   
-  temp_df <- data.frame(table(clean_data(orig_data[[temp_var1]]),
-                              clean_data(orig_data[[temp_var2]]), useNA = "no"))
+  temp_df <- as.data.frame.table(table(clean_data(orig_data[[temp_var1]]),
+                                       clean_data(orig_data[[temp_var2]]), useNA = "no"), stringsAsFactors = FALSE)
   temp_df$prop <- (temp_df$Freq/sum(temp_df$Freq))*100
   temp_df$popul <- rep(0, nrow(temp_df))
   temp_df$input <- rep(0, nrow(temp_df))
@@ -358,17 +366,6 @@ two_dim_excel <- function(orig_data, two_dim_raking_vars, wb, drop_zero, drop_ze
                    protect = TRUE, 
                    lockFormattingColumns = FALSE, lockFormattingCells = FALSE)
   
-  writeFormula(wb = wb,
-               sheet = two_dim_names,
-               x = paste0('IF(F',n_row,'=0,"",IF(AND(F',n_row,'<>100,F',n_row,'<>1),"Vsota ni 100%",""))'),
-               startCol = n_col+1, startRow = n_row)
-
-  conditionalFormatting(wb = wb,
-                        sheet = two_dim_names,
-                        cols = n_col+1, rows = n_row,
-                        type = "expression", rule = '<>""',
-                        style = createStyle(bgFill = "#FFFF65"))
-  
   setColWidths(wb = wb, sheet = two_dim_names, cols = 1:n_col, widths = "auto")
   
   conditionalFormatting(wb = wb, sheet = two_dim_names,
@@ -416,66 +413,88 @@ two_dim_excel <- function(orig_data, two_dim_raking_vars, wb, drop_zero, drop_ze
   # Diagnostic text - critical errors
   writeFormula(wb = wb,
                sheet = two_dim_names,
-               x = 'IF(OR(I4<>"",I5<>""),"Kritična opozorila (procedura ne bo delovala):","")',
-               xy = c(n_col+3, 3))
+               x = 'IF(OR(H4<>"",H5<>""),"Kritična opozorila (uteževanje ne bo delovalo):","")',
+               xy = c(n_col+2, 3))
   
   writeFormula(wb = wb,
                sheet = two_dim_names,
                x = paste0('IF(COUNTIF(G2:G',n_row-1,',"*pop0"),"Ničelna populacijska in neničelna vzorčna margina","")'),
-               startCol = n_col+3, startRow = 4)
+               startCol = n_col+2, startRow = 4)
   
   writeFormula(wb = wb,
                sheet = two_dim_names,
                x = paste0('IF(COUNTIF(G2:G',n_row-1,',"*vzorec0"),"Neničelna populacijska in ničelna vzorčna margina","")'),
-               startCol = n_col+3, startRow = 5)
+               startCol = n_col+2, startRow = 5)
   
   conditionalFormatting(wb = wb, sheet = two_dim_names,
-                        cols = n_col+3, rows = 4:5,
+                        cols = n_col+2, rows = 4:5,
                         type = "expression", rule = '<>""',
                         style = createStyle(bgFill = "#FF4B4B"))
   
   # Diagnostic text - recommendations
   writeFormula(wb = wb,
                sheet = two_dim_names,
-               x = 'IF(OR(I8<>"",I9<>""),"Priporočila (združevanje kategorij):","")',
-               xy = c(n_col+3, 7))
+               x = 'IF(OR(H8<>"",H9<>""),"Priporočila (priporočena je priključitev obarvanih kategorij k vsebinsko podobni kategoriji):","")',
+               xy = c(n_col+2, 7))
   
   writeFormula(wb = wb,
                sheet = two_dim_names,
-               x = paste0('IF(AND(COUNTIF(G2:G',n_row-1,',"vzorec1-4_*"),COUNTIF(G2:G',n_row-1,',"*_vzorec1-4")),"Kritično majhne kategorije (n < 11) in populacijske margine (< 1%)",IF(COUNTIF(G2:G',n_row-1,',"*_vzorec1-4"),"Kritično majhne populacijske margine (< 1%)",IF(COUNTIF(G2:G',n_row-1,',"vzorec1-4_*"),"Kritično majhne kategorije (n < 11)","")))'),
-               startCol = n_col+3, startRow = 8)
+               x = paste0('IF(AND(COUNTIF(G2:G',n_row-1,',"vzorec1-4_*"),COUNTIF(G2:G',n_row-1,',"*_vzorec1-4")),"Kritično majhne kategorije (n ≤ 10) in populacijske margine (< 1%)",IF(COUNTIF(G2:G',n_row-1,',"*_vzorec1-4"),"Kritično majhne populacijske margine (< 1%)",IF(COUNTIF(G2:G',n_row-1,',"vzorec1-4_*"),"Kritično majhne kategorije (n ≤ 10)","")))'),
+               startCol = n_col+2, startRow = 8)
   
   writeFormula(wb = wb,
                sheet = two_dim_names,
-               x = paste0('IF(AND(COUNTIF(G2:G',n_row-1,',"vzorec5-9_*"),COUNTIF(G2:G',n_row-1,',"*_vzorec5-9")),"Majhne kategorije (n < 31) in populacijske margine (< 5%)",IF(COUNTIF(G2:G',n_row-1,',"*_vzorec5-9"),"Majhne populacijske margine (< 5%)",IF(COUNTIF(G2:G',n_row-1,',"vzorec5-9_*"),"Majhne kategorije (n < 31)","")))'),
-               startCol = n_col+3, startRow = 9)
+               x = paste0('IF(AND(COUNTIF(G2:G',n_row-1,',"vzorec5-9_*"),COUNTIF(G2:G',n_row-1,',"*_vzorec5-9")),"Majhne kategorije (n ≤ 30) in populacijske margine (< 5%)",IF(COUNTIF(G2:G',n_row-1,',"*_vzorec5-9"),"Majhne populacijske margine (< 5%)",IF(COUNTIF(G2:G',n_row-1,',"vzorec5-9_*"),"Majhne kategorije (n ≤ 30)","")))'),
+               startCol = n_col+2, startRow = 9)
   
   conditionalFormatting(wb = wb, sheet = two_dim_names,
-                        cols = n_col+3, rows = 8,
+                        cols = n_col+2, rows = 8,
                         type = "expression", rule = '<>""',
                         style = createStyle(bgFill = "#FFC000"))
   
   conditionalFormatting(wb = wb, sheet = two_dim_names,
-                        cols = n_col+3, rows = 9,
+                        cols = n_col+2, rows = 9,
                         type = "expression", rule = '<>""',
                         style = createStyle(bgFill = "#FFECAF"))
   
+  writeFormula(wb = wb,
+               sheet = two_dim_names,
+               x = 'IF(H12<>"","Opomba:","")',
+               xy = c(n_col+2, 11))
+  
+  writeFormula(wb = wb,
+               sheet = two_dim_names,
+               x = paste0('IF(F',n_row,'=0,"",IF(AND(F',n_row,'<>100,F',n_row,'<>1),"Vsota vnesenih margin ni 100% (margine bodo preračunane, da bo vsota 100%)",""))'),
+               startCol = n_col+2, startRow = 12)
+  
+  conditionalFormatting(wb = wb,
+                        sheet = two_dim_names,
+                        cols = n_col+2, rows = 12,
+                        type = "expression", rule = '<>""',
+                        style = createStyle(bgFill = "#FFFFC1"))
+  
+  conditionalFormatting(wb = wb,
+                        sheet = two_dim_names,
+                        cols = n_col, rows = n_row,
+                        type = "expression", rule = paste0('AND(F',n_row,'<>100,F',n_row,'<>1,F',n_row,'<>0)'),
+                        style = createStyle(bgFill = "#FFFFC1"))
+  
   addStyle(wb = wb, sheet = two_dim_names, 
            style = createStyle(textDecoration = "bold"), 
-           rows = c(3,7), cols = n_col+3, stack = TRUE)
+           rows = c(3,7,11), cols = n_col+2, stack = TRUE)
   
   # Diagnostic text - ok
   writeFormula(wb = wb,
                sheet = two_dim_names,
                x = paste0('IF(AND(COUNTIF(G2:G',n_row-1,',"*_ok"),$F$',n_row,'<>0),"Ustrezen vnos","")'),
-               startCol = n_col+3, startRow = 1)
+               startCol = n_col+2, startRow = 1)
   
   conditionalFormatting(wb = wb, sheet = two_dim_names,
-                        cols = n_col+3, rows = 1,
+                        cols = n_col+2, rows = 1,
                         type = "expression", rule = '<>""',
                         style = createStyle(bgFill = "#92D050"))
   
-  setColWidths(wb = wb, sheet = two_dim_names, cols = c(3, (n_col+1):(n_col+3)), widths = c(10, 12, 4, 48))
+  setColWidths(wb = wb, sheet = two_dim_names, cols = c(3, (n_col+1):(n_col+2)), widths = c(10, 10, 48))
   
   addStyle(wb = wb, sheet = two_dim_names, 
            style = createStyle(numFmt = "NUMBER"), 

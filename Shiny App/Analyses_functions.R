@@ -16,8 +16,6 @@ wtd_t_test <- function(x,
   
   if(is.null(weights_x)) weights_x <- rep(1, length(x))
   
-  # weights_x <- weights_x/mean(weights_x, na.rm = TRUE)
-  
   mu <- weighted.mean(x = x, w = weights_x, na.rm = TRUE)
   
   # SE^2
@@ -33,7 +31,7 @@ wtd_t_test <- function(x,
     se_2 <- SE(svymean(x = x, design = survey_design, na.rm = TRUE))^2
   }
 
-  t <- (mu - mu2)/(sqrt(se_2))
+  t <- (mu2 - mu)/(sqrt(se_2))
   
   if(prop == TRUE){
     p <- pnorm(q = abs(t), lower.tail = FALSE) * 2
@@ -42,7 +40,7 @@ wtd_t_test <- function(x,
     p <- pt(q = abs(t), df = df, lower.tail = FALSE) * 2
   }
   
-  c(povp = mu, t = t, p = p, df = df)
+  c(povp = mu, t = t, p = p)
 }
 
 # weighted frequency tables for weighting variables
@@ -150,28 +148,16 @@ weighted_numeric_statistics <- function(numeric_variables, orig_data, weights, p
     temp_df[["Min"]] <- vapply(selected_data, min, na.rm = TRUE, FUN.VALUE = numeric(1)) 
     temp_df[["Maks"]] <- vapply(selected_data, max, na.rm = TRUE, FUN.VALUE = numeric(1))
     temp_df[["Neuteženo povprečje"]] <- colMeans(selected_data, na.rm = TRUE)
-    temp_df[["Uteženo povprečje"]] <- vapply(selected_data, weighted.mean, w = weights, na.rm = TRUE, FUN.VALUE = numeric(1))
-    temp_df[["Absolutna razlika"]] <- temp_df[["Uteženo povprečje"]] - temp_df[["Neuteženo povprečje"]]
-    temp_df[["Relativna razlika (%)"]] <- (temp_df[["Absolutna razlika"]]/temp_df[["Neuteženo povprečje"]])*100
     
-    # statistic <- lapply(numeric_variables, function(x){
-    #   test <- weights::wtd.t.test(x = selected_data[[x]],
-    #                               y = mean(selected_data[[x]], na.rm = TRUE),
-    #                               weight = weights)
-    # 
-    #   c("t" = test$coefficients[["t.value"]],
-    #     "p" = test$coefficients[["p.value"]])
-    # })
-    
-    statistic <- lapply(numeric_variables, function(x){
-      test <- wtd_t_test(x = selected_data[[x]],
-                         mu2 = mean(selected_data[[x]], na.rm = TRUE),
-                         weights_x = weights, ...)
-
-      c("t" = test[["t"]],
-        "p" = test[["p"]])
+    statistic <- lapply(seq_along(numeric_variables), function(i){
+      wtd_t_test(x = selected_data[[i]],
+                 mu2 = temp_df[["Neuteženo povprečje"]][[i]],
+                 weights_x = weights, ...)
     })
     
+    temp_df[["Uteženo povprečje"]] <- sapply(statistic, FUN = function(x) x[["povp"]])
+    temp_df[["Absolutna razlika"]] <- temp_df[["Neuteženo povprečje"]] - temp_df[["Uteženo povprečje"]]
+    temp_df[["Relativna razlika (%)"]] <- (temp_df[["Absolutna razlika"]]/temp_df[["Uteženo povprečje"]])*100
     temp_df[["t"]] <- sapply(statistic, FUN = function(x) x[["t"]])
 
     if(is.null(p_adjust_method)){
@@ -204,38 +190,26 @@ create_w_table <- function(orig_data, variable, weights, p_adjust_method = NULL,
     constant_var <- variable
     
   } else {
-    temp_df <- as.data.frame(table(temp_var, useNA = "no"))
+    temp_df <- as.data.frame.table(table(temp_var, useNA = "no"), stringsAsFactors = FALSE)
     names(temp_df)[1:2] <- c(variable, "N pred uteževanjem")
     temp_df[["N po uteževanju"]] <- weighted_table(temp_var, weights = weights)
     temp_df[["Delež (%) pred uteževanjem"]] <- (temp_df[[2]]/sum(temp_df[[2]]))*100
-    temp_df[["Delež (%) po uteževanju"]] <- (temp_df[[3]]/sum(temp_df[[3]]))*100
-    temp_df[["Razlika v deležih - absolutna"]] <- temp_df[[5]] - temp_df[[4]]
-    temp_df[["Razlika v deležih - relativna (%)"]] <- (temp_df[[6]]/temp_df[[4]])*100
     
     # make dummy (0 1) variable for each level of a factor variable
     dummies <- weights::dummify(x = temp_var, show.na = FALSE, keep.na = TRUE)
     
     # then perform weighted z-test on every dummy variable (mean = proportion)
-    # statistic <- lapply(seq_len(ncol(dummies)), function(i){
-    #   test <- weights::wtd.t.test(x = dummies[ ,i],
-    #                               y = mean(dummies[ ,i], na.rm = TRUE),
-    #                               weight = weights)
-    #   
-    #   c("t" = test$coefficients[["t.value"]],
-    #     "p" = test$coefficients[["p.value"]])
-    # })
-    # 
     statistic <- lapply(seq_len(ncol(dummies)), function(i){
-      test <- wtd_t_test(x = dummies[ ,i],
-                         mu2 = mean(dummies[ ,i], na.rm = TRUE),
-                         weights_x = weights,
-                         prop = TRUE, ...)
-      # odstrani to
-      c("z" = test[["t"]],
-        "p" = test[["p"]])
+      wtd_t_test(x = dummies[ ,i],
+                 mu2 = temp_df[["Delež (%) pred uteževanjem"]][[i]]/100,
+                 weights_x = weights,
+                 prop = TRUE, ...)
     })
     
-    temp_df[["z"]] <- abs(sapply(statistic, FUN = function(x) x[["z"]]))
+    temp_df[["Delež (%) po uteževanju"]] <- (sapply(statistic, FUN = function(x) x[["povp"]]))*100
+    temp_df[["Razlika v deležih - absolutna"]] <- temp_df[[4]] - temp_df[[5]]
+    temp_df[["Razlika v deležih - relativna (%)"]] <- (temp_df[[6]]/temp_df[[5]])*100
+    temp_df[["z"]] <- sapply(statistic, FUN = function(x) x[["t"]])
     
     if(is.null(p_adjust_method)){
       temp_df[["p"]] <- sapply(statistic, FUN = function(x) x[["p"]])
@@ -295,7 +269,7 @@ download_analyses_numeric_table <- function(numeric_table, file){
                       "% od vseh spremenljivk" = freq_rel_change$p_sums/sum(freq_rel_change$sums),
                       "% od relativne razlike" = freq_rel_change$p_sums/freq_rel_change$sums,
                       "Kumul f*" = freq_rel_change$p_cumsums,
-                      "Kumul %" = freq_rel_change$p_cumsums/sum(freq_rel_change$p_sums),
+                      "Kumul %*" = freq_rel_change$p_cumsums/sum(freq_rel_change$sums),
                       check.names = FALSE)
     
     tbl[is.na(tbl)] <- 0
@@ -354,17 +328,17 @@ download_analyses_numeric_table <- function(numeric_table, file){
              gridExpand = TRUE, stack = TRUE)
     
     setColWidths(wb = wb, sheet = "Povzetek", cols = 1:10,
-                 widths = c(14, 5, 6, 8, 8, 5, 21, 21, 8, 8))
+                 widths = c(14, 5, 6, 8, 8, 5, 21, 21, 8, 8.5))
     
     setRowHeights(wb = wb, sheet = "Povzetek", rows = 1:4, heights = c(20, 20, 25, 44))
     
     ## table worksheet
     addWorksheet(wb = wb,
-                 sheetName = "Opisne_statistike",
+                 sheetName = "Opisne statistike",
                  gridLines = FALSE)
     
     writeData(wb = wb,
-              sheet = "Opisne_statistike",
+              sheet = "Opisne statistike",
               x = numeric_table,
               borders = "all",
               startRow = 1,
@@ -377,29 +351,33 @@ download_analyses_numeric_table <- function(numeric_table, file){
     n_row <- nrow(numeric_table)
     
     addStyle(wb = wb,
-             sheet = "Opisne_statistike",
+             sheet = "Opisne statistike",
              style = createStyle(halign = "center"),
              rows = 2:(n_row+2), cols = (n_col-9):n_col,
              gridExpand = TRUE, stack = TRUE)
     
     addStyle(wb = wb,
-             sheet = "Opisne_statistike",
+             sheet = "Opisne statistike",
              style = createStyle(numFmt = "0.00"),
              rows = 2:(n_row+2), cols = (n_col-6):(n_col-1),
              gridExpand = TRUE, stack = TRUE)
     
-    addStyle(wb = wb, sheet = "Opisne_statistike",
+    addStyle(wb = wb, sheet = "Opisne statistike",
              style = createStyle(numFmt = "0"),
              rows = 2:(n_row+2), cols = n_col-3,
              gridExpand = TRUE, stack = TRUE)
     
-    setColWidths(wb = wb, sheet = "Opisne_statistike", cols = 1:n_col, widths = "auto")
-    setColWidths(wb = wb, sheet = "Opisne_statistike", cols = 2, widths = 20)
-    setRowHeights(wb = wb, sheet = "Opisne_statistike", rows = 1, heights = 35)
+    setColWidths(wb = wb, sheet = "Opisne statistike", cols = 1:n_col, widths = "auto")
+    setColWidths(wb = wb, sheet = "Opisne statistike", cols = 2, widths = 20)
+    setRowHeights(wb = wb, sheet = "Opisne statistike", rows = 1, heights = 35)
     
-    writeData(wb = wb, sheet = "Opisne_statistike",
+    writeData(wb = wb, sheet = "Opisne statistike",
               x = "Signifikanca: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001",
               xy = c(n_col + 1, 1))
+    
+    addStyle(wb = wb, sheet = "Opisne statistike",
+             style = createStyle(fontSize = 9, valign = "center"),
+             rows = 1, cols = n_col + 1)
   }
   
   saveWorkbook(wb = wb, file = file, overwrite = TRUE)
@@ -431,7 +409,7 @@ download_analyses_factor_tables <- function(factor_tables, orig_data, file, warn
                       "% od vseh kategorij" = freq_rel_change$p_sums/sum(freq_rel_change$sums),
                       "% od relativne razlike" = freq_rel_change$p_sums/freq_rel_change$sums,
                       "Kumul f*" = freq_rel_change$p_cumsums,
-                      "Kumul %" = freq_rel_change$p_cumsums/sum(freq_rel_change$p_sums),
+                      "Kumul %*" = freq_rel_change$p_cumsums/sum(freq_rel_change$sums),
                       check.names = FALSE)
     
     tbl[is.na(tbl)] <- 0
@@ -499,13 +477,13 @@ download_analyses_factor_tables <- function(factor_tables, orig_data, file, warn
              gridExpand = TRUE, stack = TRUE)
     
     setColWidths(wb = wb, sheet = "Povzetek", cols = 1:10,
-                 widths = c(14, 5, 6, 8, 8, 5, 21, 21, 8, 8))
+                 widths = c(14, 5, 6, 8, 8, 5, 21, 21, 8, 8.5))
     
     setRowHeights(wb = wb, sheet = "Povzetek", rows = 1:4, heights = c(20, 20, 25, 44))
     
     ## frequency tables worksheet
     addWorksheet(wb = wb,
-                 sheetName = "Frekvencne_tabele",
+                 sheetName = "Frekvencne tabele",
                  gridLines = FALSE)
     
     # starting row = number of rows of previous table
@@ -519,7 +497,7 @@ download_analyses_factor_tables <- function(factor_tables, orig_data, file, warn
       colnames(factor_tables[[i]])[1] <- paste0(spr, ifelse(is.null(labela), "", paste0(" - ", labela)))
       
       writeData(wb = wb,
-                sheet = "Frekvencne_tabele",
+                sheet = "Frekvencne tabele",
                 x = factor_tables[[i]],
                 borders = "all",
                 startRow = start_rows[i],
@@ -530,42 +508,42 @@ download_analyses_factor_tables <- function(factor_tables, orig_data, file, warn
     }
     
     writeData(wb = wb,
-              sheet = "Frekvencne_tabele",
+              sheet = "Frekvencne tabele",
               x = "Signifikanca: + p < 0.1, * p < 0.05, ** p < 0.01, *** p < 0.001", xy = c(1, 1))
     
     if(warning_indicator){
       writeData(wb = wb,
-                sheet = "Frekvencne_tabele",
-                x = "! Število enot v celici je premajhno za zanesljivo oceno p vrednosti.", xy = c(1,2))
+                sheet = "Frekvencne tabele",
+                x = "! Število enot v celici je premajhno za zanesljivo oceno p vrednosti (np ≤ 5 ali n(1-p) ≤ 5).", xy = c(1,2))
       
     }
     
-    addStyle(wb = wb, sheet = "Frekvencne_tabele",
+    addStyle(wb = wb, sheet = "Frekvencne tabele",
              style = createStyle(fontSize = 9),
              rows = 1:2, cols = 1)
     
     addStyle(wb = wb,
-             sheet = "Frekvencne_tabele",
+             sheet = "Frekvencne tabele",
              style = createStyle(numFmt = "0.00"),
              rows = 1:(start_rows[length(start_rows)]+nrow(factor_tables[[length(factor_tables)]])),
              cols = 8:9,
              gridExpand = TRUE, stack = TRUE)
     
     addStyle(wb = wb,
-             sheet = "Frekvencne_tabele",
+             sheet = "Frekvencne tabele",
              style = createStyle(numFmt = "0"),
              rows = 1:(start_rows[length(start_rows)]+nrow(factor_tables[[length(factor_tables)]])),
              cols = 2:7,
              gridExpand = TRUE, stack = TRUE)
     
     addStyle(wb = wb,
-             sheet = "Frekvencne_tabele",
+             sheet = "Frekvencne tabele",
              style = createStyle(halign = "center"),
              rows = 1:(start_rows[length(start_rows)]+nrow(factor_tables[[length(factor_tables)]])),
              cols = 2:10,
              gridExpand = TRUE, stack = TRUE)
     
-    setColWidths(wb = wb, sheet = "Frekvencne_tabele", cols = 1:10, widths = c(60, rep(15, 6), 10, 10, 12))
+    setColWidths(wb = wb, sheet = "Frekvencne tabele", cols = 1:10, widths = c(60, rep(15, 6), 10, 10, 12))
   }
   
   saveWorkbook(wb = wb, file = file, overwrite = TRUE)

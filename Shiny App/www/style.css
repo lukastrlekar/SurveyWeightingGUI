@@ -102,12 +102,6 @@
                                         background-color: transparent;
                                       }
                                   
-                                  /* Text on the front page in argument p() */    
-                                  .banner-text {
-                                    line-height: 2;
-                                    letter-spacing: 0.04em;  
-                                  }
-                                  
                                   /* Make Excel symbol green color */ 
                                   .fa-file-excel {
                                     color: #1D6F42;
@@ -144,3 +138,45 @@
                                     border-left: 1px solid #dddddd;
                                   }
                                   
+                                  /* Put shiny notifications bottom left */
+                                  #shiny-notification-panel {
+                                    top: unset;
+                                    bottom: 0;
+                                    left: 0;
+                                    right: unset;
+                                    margin-left: auto;
+                                    margin-right: auto;
+                                    width: 100%;
+                                    max-width: 450px;
+                                    text-align: center;
+                                  }
+                                  
+                                  .shiny-notification-close {
+                                    font-size: 3rem;
+                                    color: #000;
+                                  }
+                                  
+                                  .shiny-notification {
+                                    color: #000;
+                                    opacity: .90;
+                                  }
+                                  
+                                  .landing-box {
+                                    position: relative;
+                                    font-size: 16px;
+                                    padding: 20px;
+                                    margin: 16px;
+                                    text-align: center;
+                                }
+                                
+                                  .landing-number {
+                                    position: absolute;
+                                    top: -20px;
+                                    left: 50%;
+                                    transform: translateX(-50%);
+                                    background-color: #2e6da4;
+                                    color: white;
+                                    font-size: 16px;
+                                    padding: 3px 10px;
+                                    border-radius: 50%;
+                                }
