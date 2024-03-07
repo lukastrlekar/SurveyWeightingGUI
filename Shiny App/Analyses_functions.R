@@ -393,7 +393,7 @@ download_analyses_factor_tables <- function(factor_tables, orig_data, file, warn
                  gridLines = FALSE)
     
     categories <- abs(na.omit(do.call(rbind, lapply(factor_tables, "[", c(7, 9)))))
-    warning_numerus <- grepl(pattern = "!", x = na.omit(do.call(rbind, lapply(factor_tables, "[", 10)))[[1]])
+    warning_numerus <- grepl(pattern = "!", x = na.omit(do.call(rbind, lapply(factor_tables, "[", 10)))[[1]], fixed = TRUE)
     
     # temporarily replace p-values with small n with 1 so they are not counted in summary
     if(any(warning_numerus)) categories[warning_numerus,][[2]] <- 1
@@ -447,7 +447,7 @@ download_analyses_factor_tables <- function(factor_tables, orig_data, file, warn
               x = cbind(c(paste("Št. vseh opisnih spremenljivk:", length(factor_tables)),
                           paste("Št. statistično značilnih opisnih spremenljivk (p < 0.05):",
                                 sum(vapply(seq_along(factor_tables), function(i){
-                                  warning <- grepl(pattern = "!", x = factor_tables[[i]][[10]])
+                                  warning <- grepl(pattern = "!", x = factor_tables[[i]][[10]], fixed = TRUE)
                                   any(factor_tables[[i]][[9]][!warning] < 0.05, na.rm = TRUE)
                                 }, FUN.VALUE = logical(1)))))),
               startCol = 1, startRow = 13, rowNames = FALSE, colNames = FALSE)

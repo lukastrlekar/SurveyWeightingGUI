@@ -1,7 +1,8 @@
 # TODO
 # user_na_to_na ni treba povsod
 # za survey rakign če je error da se izpiše kaj informativnega in konvergenca
-
+# https://stackoverflow.com/questions/36670065/tooltip-in-shiny-ui-for-help-text
+# https://stackoverflow.com/questions/49069013/adding-hover-tooltips-to-shinyapps-io
 
 # Trim weights after raking iterative procedure
 ## Weights are trimmed at user-specified values, and then readjusted so that the
@@ -184,7 +185,7 @@ perform_weighting <- function(orig_data = NULL,
     
     for(i in seq_along(two_dimensional_raking_variables)){
       two_dim_names_survey <- paste0(two_dimensional_raking_variables[[i]], collapse = " x ")
-      selected_data[[gsub(pattern = " ", replacement = ".", x = two_dim_names_survey)]] <- selected_data[[two_dim_names_survey]]
+      selected_data[[gsub(pattern = " ", replacement = ".", x = two_dim_names_survey, fixed = TRUE)]] <- selected_data[[two_dim_names_survey]]
     }
     
     n <- nrow(orig_data)
@@ -192,7 +193,7 @@ perform_weighting <- function(orig_data = NULL,
     pop_margins <- lapply(seq_along(popul_margins), FUN = function(i){
       temp_df <- data.frame(v = names(popul_margins[[i]]),
                             Freq = unname(popul_margins[[i]]) * n)
-      names(temp_df)[1] <- gsub(pattern = " ", replacement = ".", x = names(popul_margins[i]))  
+      names(temp_df)[1] <- gsub(pattern = " ", replacement = ".", x = names(popul_margins[i]), fixed = TRUE)  
       temp_df
     })
     

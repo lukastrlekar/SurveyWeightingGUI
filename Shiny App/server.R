@@ -111,7 +111,21 @@ server <- function(input, output, session){
                         na_strings = input$na_strings),
               silent = TRUE)
     
-    if(!is.data.frame(df)){
+    if(!is.data.frame(df) && input$raw_data_file_type == "sav"){
+      # issue https://github.com/tidyverse/haven/issues/615
+      df <- try(
+        labelled::user_na_to_na(haven::read_sav(file = input$upload_raw_data$datapath, user_na = TRUE, encoding = "latin1")),
+        silent = TRUE)
+      
+      if(!is.data.frame(df)){
+        shinyjs::show("message_wrong_raw_data")
+        return(data.frame())
+      } else {
+        shinyjs::hide("message_wrong_raw_data")
+        return(df)
+      }
+      
+    } else if(!is.data.frame(df)){
       shinyjs::show("message_wrong_raw_data")
       return(data.frame())
       
