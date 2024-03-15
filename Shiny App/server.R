@@ -571,9 +571,11 @@ server <- function(input, output, session){
   # Weighting tab ---------------------------------------------------------------
     
   output$which_weighting_vars <- renderUI({
-    input_true <- sapply(seq_len(length(inputed_tables())), function(i) {
-      is.null(input[[paste0("input_table_", clean_names()[[i]])]])
-    }) # TOLE PREGLEJ
+
+    input_true <- unlist(lapply(seq_along(inputed_tables()), function(i) {
+      t <- hot_to_r(input[[paste0("input_table_", clean_names()[[i]])]])
+      isTRUE(t[nrow(t),ncol(t)] > 0)
+    }))
     
     file_input <- fileInput(inputId = "upload_margins_data", 
                             label = "Naloži datoteko z vnešenimi populacijskimi marginami",
@@ -581,7 +583,7 @@ server <- function(input, output, session){
                             accept = c(".xlsx", ".RData"),
                             buttonLabel = "Naloži datoteko")
     
-    if(all(input_true)) {
+    if(!any(input_true)) {
       file_input
       
     } else {
