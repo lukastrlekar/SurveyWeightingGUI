@@ -1,9 +1,13 @@
 
 # SurveyWeightingGUI
 
+Luka Štrlekar, Vasja Vehovar
+
+*University of Ljubljana, Faculty of Social Sciences*
+
 ## Short Description
 
-SurveyWeightingGUI is a web application built to make survey post-stratification weighting easier and more user-friendly (currently only available in Slovene language).
+SurveyWeightingGUI is a web application built to make survey weighting  with raking procedure easier and more user-friendly (currently only available in Slovene language).
 
 ## Installation
 
