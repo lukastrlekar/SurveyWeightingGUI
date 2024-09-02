@@ -1,4 +1,3 @@
-
 # SurveyWeightingGUI
 
 Luka Štrlekar, Vasja Vehovar

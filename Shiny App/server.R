@@ -19,6 +19,8 @@ source("Data_manipulation.R")
 source("Raking_script.R")
 source("Analyses_functions.R")
 
+# TODO dodati tutorial: ko bo app v obliki package se da vinjeto in testne podatke, ki se jih lahko dostopa iz orodja (iz UI)
+
 server <- function(input, output, session){
   
   ## Global settings

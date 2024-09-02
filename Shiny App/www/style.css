@@ -5,6 +5,11 @@
                                     border-color: #2e6da4; 
                                   }
                                   
+                                  /* Add horizontal lines in variable selection boxes */
+                                  .dropdown-menu>li>a {
+                                    border-bottom: 1px solid rgba(0, 0, 0, .15);
+                                  }
+                                  
                                   /* Style file upload progress bar */
                                   .progress-bar {
                                     color: #000000;
