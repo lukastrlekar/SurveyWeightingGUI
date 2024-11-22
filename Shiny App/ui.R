@@ -111,7 +111,7 @@ ui <-
                       fluidRow(align = "center",
                                HTML('&copy; 2023-2024 Luka Štrlekar, Vasja Vehovar
                                       &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
-                                      <a href="mailto:ls9889@student.uni-lj.si"><i class="fa fa-envelope"></i>&nbsp&nbspKontakt</a>
+                                      <a href="mailto:luka.strlekar@fdv.uni-lj.si"><i class="fa fa-envelope"></i>&nbsp&nbspKontakt</a>
                                       &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
                                       <a href="https://github.com/lukastrlekar/SurveyWeightingGUI" target="_blank" rel="noopener noreferrer">
                                       <i class="fa fa-github"></i>&nbsp&nbspIzvorna koda</a>'),
