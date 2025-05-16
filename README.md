@@ -27,4 +27,4 @@ shiny::runGitHub(repo = "SurveyWeightingGUI", username = "lukastrlekar", ref = "
 App will also be availabe as R package at a later date.
 
 
-Copyright (C) 2023-2024 Luka Štrlekar, Vasja Vehovar
+Copyright (C) 2023-2025 Luka Štrlekar, Vasja Vehovar
