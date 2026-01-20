@@ -109,7 +109,7 @@ ui <-
                       #          h4(HTML("<center><b>4.</b></br>Evalviraj uteži</center>")),
                       #          br())),
                       fluidRow(align = "center",
-                               HTML('&copy; 2023-2025 Luka Štrlekar, Vasja Vehovar
+                               HTML('&copy; 2023-2026 Luka Štrlekar, Vasja Vehovar
                                       &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
                                       <a href="mailto:luka.strlekar@fdv.uni-lj.si"><i class="fa fa-envelope"></i>&nbsp&nbspKontakt</a>
                                       &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp
